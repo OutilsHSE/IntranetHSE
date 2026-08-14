@@ -609,7 +609,8 @@ function kpiTile(def){
     '<div class="v'+(def.type==='txt'?' txt':'')+'">'+fmtKpi(def,v)+'</div>'+
     '<div class="l">'+esc(def.lib)+'</div>'+
     (maj?'<div class="m">maj '+esc(frDateCourt(maj))+'</div>':'')+'</div>'}
-function dernierArret(){const r=repData();return (r&&r.dernierArret)||kpiVal('secu.dernierAccident')||''}
+function dernierArret(){const r=repData();const v=(r&&r.dernierArret)||kpiVal('secu.dernierAccident')||'';
+  const t=String(v).replace(/^"|"$/g,'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(t)?t:''}
 function joursSans(){
   const d=dernierArret();
   if(!d)return null;
@@ -822,7 +823,7 @@ function renderEssentiels(){
   let h='<div class="kpis" style="margin-bottom:11px">';
   h+='<div class="kpi hero2"><div class="v">'+(js===null?'—':js.toLocaleString('fr-FR'))+'</div><div class="l">jour'+(js>1?'s':'')+' sans accident avec arrêt'+(dernierArret()?' — dernier le '+esc(frDate(String(dernierArret()))):'')+'</div></div>';
   h+='</div><div class="ess">';
-  const qVide=q&&q.mois.every(m=>!(m.nb>0)&&!(m.eff>0));
+  const qVide=q&&q.mois.every(m=>!(m.nb>0));
   if(cur&&qVide)h+='<div class="kpi"><div class="v">⏳</div><div class="l">Participation QHP</div><div class="m">en attente des premiers QHP saisis dans l’appli de suivi</div></div>';
   else if(cur)h+='<div class="kpi '+(cur.part>=q.objPart?'good':'bad')+'">'+gauge(cur.part||0,cur.part>=q.objPart?'c-ok':'c-bad')+'<div class="l">Participation QHP — obj. '+q.objPart+' %</div></div>';
   const vr=repMoisRemplis(), vAtt=vr.reduce((s,m)=>s+(Number(m.vigiAtt)||0),0), vRec=vr.reduce((s,m)=>s+(Number(m.vigiRecu)||0),0);
@@ -858,7 +859,7 @@ function animerChiffres(){
 function renderQhpSection(){
   const q=qhpData();
   if(!q)return '<div class="secempty">📡 Les indicateurs QHP se calculent automatiquement depuis le classeur du suivi QHP.<br>Côté Apps Script « Intranet HSE », renseigne la propriété <code>QHP_SHEET_ID</code> puis branche le webhook : rien à saisir à la main.</div>';
-  if(q.mois.every(m=>!(m.nb>0)&&!(m.eff>0)))return '<div class="secempty">⏳ Branché et prêt — les chiffres apparaîtront dès les premiers QHP saisis dans l’appli « Suivi des QHP ».</div>';
+  if(q.mois.every(m=>!(m.nb>0)))return '<div class="secempty">⏳ Branché et prêt — les chiffres apparaîtront dès les premiers QHP saisis dans l’appli « Suivi des QHP ».</div>';
   const cur=q.mois[q.mois.length-1]||{};
   const okp=cur.part>=q.objPart;
   let h='<div class="kpis">';
