@@ -479,7 +479,7 @@ const DEMO={'secu.dernierAccident':'2026-03-12','secu.accArret':1,'secu.accSansA
  'mase.avancement':64,'mase.agence':'IDF','mase.certUrl':'',
  'flash.securite':9,'flash.sante':3,'flash.env':2,'flash.retex':2};
 /* démo du reporting central (mêmes colonnes que le classeur « Indicateurs SSE ») */
-const DEMO_REP={calculeLe:null,mois:[
+const DEMO_REP={calculeLe:null,dernierArret:'2026-03-12',mois:[
  {k:'2026-01',heures:14651,accArret:0,accSans:1,benins:0,joursArret:0,vms:1,accueils:12,visites:5,vigiAtt:84,vigiRecu:67,formations:0},
  {k:'2026-02',heures:15263,accArret:0,accSans:1,benins:2,joursArret:0,vms:1,accueils:4,visites:7,vigiAtt:84,vigiRecu:74,formations:1},
  {k:'2026-03',heures:17886,accArret:0,accSans:0,benins:0,joursArret:0,vms:1,accueils:4,visites:5,vigiAtt:83,vigiRecu:68,formations:2},
@@ -609,8 +609,9 @@ function kpiTile(def){
     '<div class="v'+(def.type==='txt'?' txt':'')+'">'+fmtKpi(def,v)+'</div>'+
     '<div class="l">'+esc(def.lib)+'</div>'+
     (maj?'<div class="m">maj '+esc(frDateCourt(maj))+'</div>':'')+'</div>'}
+function dernierArret(){const r=repData();return (r&&r.dernierArret)||kpiVal('secu.dernierAccident')||''}
 function joursSans(){
-  const d=kpiVal('secu.dernierAccident');
+  const d=dernierArret();
   if(!d)return null;
   const t=new Date(String(d)+'T00:00');if(isNaN(t))return null;
   return Math.max(0,Math.floor((Date.now()-t.getTime())/86400000))}
@@ -625,7 +626,9 @@ function renderDash(){
     if(sec.id==='secu'){
       const rep=repData(), rows=repMoisRemplis(), cur=rows[rows.length-1];
       h+='<div class="kpis">';
-      h+=kpiTile(KPI_INDEX['secu.dernierAccident']);
+      const dA=dernierArret();
+      if(dA)h+='<div class="kpi"><div class="v" style="font-size:23px;line-height:1.25;padding-top:6px">'+esc(frDate(String(dA)))+'</div><div class="l">Date du dernier accident avec arrêt</div><div class="m">🤖 depuis les incidents déclarés</div></div>';
+      else h+=kpiTile(KPI_INDEX['secu.dernierAccident']);
       if(rep&&cur){
         const S=k=>rows.reduce((s,m)=>s+(Number(m[k])||0),0);
         const src=(periode==='mois')?cur:{accArret:S('accArret'),accSans:S('accSans'),benins:S('benins'),joursArret:S('joursArret'),heures:S('heures')};
@@ -817,9 +820,11 @@ function renderEssentiels(){
   const js=joursSans();
   const q=qhpData();const cur=q?(q.mois[q.mois.length-1]||{}):null;
   let h='<div class="kpis" style="margin-bottom:11px">';
-  h+='<div class="kpi hero2"><div class="v">'+(js===null?'—':js.toLocaleString('fr-FR'))+'</div><div class="l">jour'+(js>1?'s':'')+' sans accident avec arrêt'+(kpiVal('secu.dernierAccident')?' — dernier le '+esc(frDate(String(kpiVal('secu.dernierAccident')))):'')+'</div></div>';
+  h+='<div class="kpi hero2"><div class="v">'+(js===null?'—':js.toLocaleString('fr-FR'))+'</div><div class="l">jour'+(js>1?'s':'')+' sans accident avec arrêt'+(dernierArret()?' — dernier le '+esc(frDate(String(dernierArret()))):'')+'</div></div>';
   h+='</div><div class="ess">';
-  if(cur)h+='<div class="kpi '+(cur.part>=q.objPart?'good':'bad')+'">'+gauge(cur.part||0,cur.part>=q.objPart?'c-ok':'c-bad')+'<div class="l">Participation QHP — obj. '+q.objPart+' %</div></div>';
+  const qVide=q&&q.mois.every(m=>!(m.nb>0)&&!(m.eff>0));
+  if(cur&&qVide)h+='<div class="kpi"><div class="v">⏳</div><div class="l">Participation QHP</div><div class="m">en attente des premiers QHP saisis dans l’appli de suivi</div></div>';
+  else if(cur)h+='<div class="kpi '+(cur.part>=q.objPart?'good':'bad')+'">'+gauge(cur.part||0,cur.part>=q.objPart?'c-ok':'c-bad')+'<div class="l">Participation QHP — obj. '+q.objPart+' %</div></div>';
   const vr=repMoisRemplis(), vAtt=vr.reduce((s,m)=>s+(Number(m.vigiAtt)||0),0), vRec=vr.reduce((s,m)=>s+(Number(m.vigiRecu)||0),0);
   const vp=vAtt>0?Math.round(vRec/vAtt*100):kpiVal('vigi.tauxHebdo');
   if(vp!==undefined&&vp!==''&&!isNaN(Number(vp)))h+='<div class="kpi '+(Number(vp)>=80?'good':'bad')+'">'+gauge(Number(vp),Number(vp)>=80?'c-ok':'c-bad')+'<div class="l">Participation Vigiminutes'+(vAtt>0?' ('+vRec+'/'+vAtt+')':'')+'</div>'+(vAtt>0?'<div class="m">🤖 reporting central</div>':'')+'</div>';
@@ -853,6 +858,7 @@ function animerChiffres(){
 function renderQhpSection(){
   const q=qhpData();
   if(!q)return '<div class="secempty">📡 Les indicateurs QHP se calculent automatiquement depuis le classeur du suivi QHP.<br>Côté Apps Script « Intranet HSE », renseigne la propriété <code>QHP_SHEET_ID</code> puis branche le webhook : rien à saisir à la main.</div>';
+  if(q.mois.every(m=>!(m.nb>0)&&!(m.eff>0)))return '<div class="secempty">⏳ Branché et prêt — les chiffres apparaîtront dès les premiers QHP saisis dans l’appli « Suivi des QHP ».</div>';
   const cur=q.mois[q.mois.length-1]||{};
   const okp=cur.part>=q.objPart;
   let h='<div class="kpis">';
