@@ -18,7 +18,7 @@
  *  La modification, elle, passe par le lien de branchement (avec mot de passe).
  * ========================================================================== */
 const CONFIG = {
-  WEBHOOK_URL: 'https://script.google.com/macros/s/AKfycbwTeRCRAdexpa_yHuMoQ0RLx3E4pB8pJw4fybUhuPyMiSd6L1TuWEvS6Lozlx8SOJEc/exec'   // ex. 'https://script.google.com/macros/s/AKfycb…/exec'
+  WEBHOOK_URL: ''   // ex. 'https://script.google.com/macros/s/AKfycb…/exec'
 };
 </script>
 <style>
@@ -422,7 +422,6 @@ const DEF_OUTILS=[
  {id:'retex',cat:'Culture HSE',ico:'📣',nom:'Flashs RETEX',desc:'Retours d’expérience et flashs sécurité',url:''},
  // — Outils service HSE (visibles via la case dédiée) —
  {id:'analyseacc',cat:CAT_HSE,ico:'🚨',nom:'Analyse d’accident',desc:'Recueil des faits, arbre des causes, rapport',url:'https://outilshse.github.io/AnalyseAccident/',hse:true},
- {id:'planning',cat:CAT_HSE,ico:'📆',nom:'Planning HSE',desc:'Planification et suivi des actions HSE',url:'https://outilshse.github.io/Planning-HSE/',hse:true},
  {id:'suiviqhp',cat:CAT_HSE,ico:'📋',nom:'Suivi des QHP',desc:'Fiches, bilan mensuel et annuel des Quarts d’Heure Prévention',url:'',hse:true},
  {id:'suivivigi',cat:CAT_HSE,ico:'📊',nom:'Suivi des Vigiminutes',desc:'Taux de réalisation hebdo par chantier et par bateau',url:'https://outilshse.github.io/Vigiminutes/',hse:true},
  {id:'repapp',cat:CAT_HSE,ico:'✍️',nom:'Reporting HSE',desc:'Saisie : mensuel, incidents, remontées, objectifs',url:'',hse:true},
@@ -507,6 +506,7 @@ function load(){
   try{const r=localStorage.getItem(LS);if(r){const s=JSON.parse(r);if(s&&typeof s==='object')state=Object.assign(state,s)}}catch(e){}
   if(!Array.isArray(state.outils))state.outils=[];
   if(!state.kpi)state.kpi={};if(!state.kpiMaj)state.kpiMaj={};if(!state.tombOutils)state.tombOutils={};
+  // outils retirés du système par décision : on les efface partout, une bonne fois
   // fusion des outils par défaut : on ajoute ceux qui manquent, sans écraser
   DEF_OUTILS.forEach(d=>{if(!state.outils.some(o=>o.id===d.id)&&!state.tombOutils[d.id])state.outils.push(JSON.parse(JSON.stringify(d)))});
   state.outils.forEach(o=>{if(!Array.isArray(o.links))o.links=[];o.hse=(o.hse===true||o.hse==='oui')});
