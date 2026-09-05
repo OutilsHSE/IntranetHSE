@@ -749,7 +749,13 @@ function saveConfLS(){try{localStorage.setItem(LS_CONF,JSON.stringify(conf))}cat
 function webhookLecture(){return conf.webhook||CONFIG.WEBHOOK_URL||''}
 function estEditeur(){return !!(conf.webhook&&conf.secret)||!webhookLecture()}
 function demoMode(){return !webhookLecture()&&!Object.keys(state.kpi).length}
-function kpiVal(cle){if(state.kpi[cle]!==undefined&&state.kpi[cle]!=='')return state.kpi[cle];return demoMode()?DEMO[cle]:undefined}
+/* Les actions saisies dans le Reporting (écran Santé & Environnement) priment sur
+   la valeur tapée dans Réglages : elles sont comptées côté serveur, par agence. */
+function kpiVal(cle){
+  const r=repData();
+  if(r&&r.autres&&r.autres[cle]!==undefined)return r.autres[cle];
+  if(state.kpi[cle]!==undefined&&state.kpi[cle]!=='')return state.kpi[cle];
+  return demoMode()?DEMO[cle]:undefined}
 function qhpData(){if(qhpAuto&&Array.isArray(qhpAuto.mois))return qhpAuto;return demoMode()?DEMO_QHP:null}
 /* Vue du reporting selon l'agence choisie. Le serveur envoie le global ET la
    ventilation ; on n'a qu'à piocher. Une agence sans données renvoie une vue
