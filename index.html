@@ -8,17 +8,26 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
+     ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
+     débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
+<script src="config.js"></script>
 <script>
 /* ============================================================================
  *  INTRANET HSE — CDES  ·  Portail des outils + tableau de bord KPI
  * ----------------------------------------------------------------------------
- *  CONFIGURATION (la seule chose à modifier dans ce fichier) :
- *  colle ci-dessous l'adresse /exec du script « Intranet HSE » une fois déployé.
+ *  CONFIGURATION : plus rien à modifier ici. L'adresse /exec du script
+ *  « Intranet HSE » se met dans config.js, à côté de ce fichier :
+ *      window.CONFIG_HSE = { WEBHOOK_URL: 'https://…/exec' };
  *  Avec cette adresse, TOUT LE MONDE voit les indicateurs (lecture seule).
  *  La modification, elle, passe par le lien de branchement (avec mot de passe).
+ *
+ *  DÉPANNAGE : si tu ne peux pas déposer config.js, colle l'adresse dans
+ *  WEBHOOK_SECOURS ci-dessous — mais il faudra la recoller à chaque version.
  * ========================================================================== */
+const WEBHOOK_SECOURS = '';
 const CONFIG = {
-  WEBHOOK_URL: 'https://script.google.com/macros/s/AKfycbwTeRCRAdexpa_yHuMoQ0RLx3E4pB8pJw4fybUhuPyMiSd6L1TuWEvS6Lozlx8SOJEc/exec'   // ex. 'https://script.google.com/macros/s/AKfycb…/exec'
+  WEBHOOK_URL: (window.CONFIG_HSE && window.CONFIG_HSE.WEBHOOK_URL) || WEBHOOK_SECOURS || ''
 };
 </script>
 <style>
@@ -753,11 +762,22 @@ function load(){
   if(!Array.isArray(state.modeop))state.modeop=[];if(!state.tombModeop)state.tombModeop={};
   // outils retirés du système par décision : on les efface partout, une bonne fois
   // fusion des outils par défaut : on ajoute ceux qui manquent, sans écraser
-  DEF_OUTILS.forEach(d=>{if(!state.outils.some(o=>o.id===d.id)&&!state.tombOutils[d.id])state.outils.push(JSON.parse(JSON.stringify(d)))});
+  completerDefauts();
   state.outils.forEach(o=>{if(!Array.isArray(o.links))o.links=[];o.hse=(o.hse===true||o.hse==='oui')});
   try{const c=localStorage.getItem(LS_CONF);if(c)conf=Object.assign(conf,JSON.parse(c))}catch(e){}
   if(conf.periode)periode=conf.periode;
   if(conf.moisChoisi)moisChoisi=conf.moisChoisi;}
+/* Les tuiles livrées AVEC la page. Une nouvelle version peut en ajouter (le prêt
+   de matériel, septembre 2026) ; le serveur, lui, ne connaît que celles qui y ont
+   déjà été synchronisées. Sans ce rappel après chaque synchro, une tuile toute
+   neuve s'afficherait à l'ouverture puis disparaîtrait dès que les données
+   arrivent. Une tuile supprimée exprès (pierre tombale) ne revient jamais. */
+function completerDefauts(){
+  DEF_OUTILS.forEach(d=>{
+    if(state.outils.some(o=>o.id===d.id)||state.tombOutils[d.id])return;
+    state.outils.push(JSON.parse(JSON.stringify(d)));
+  });
+}
 function save(){try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}}
 function saveConfLS(){try{localStorage.setItem(LS_CONF,JSON.stringify(conf))}catch(e){}}
 function webhookLecture(){return conf.webhook||CONFIG.WEBHOOK_URL||''}
@@ -1241,7 +1261,7 @@ function renderDash(){
            '</div>';
       }else{
         h+='<div class="kpis">'+sec.kpis.filter(k=>!k.cache).map(kpiTile).join('')+'</div>';
-        h+='<p class="hint" style="margin-top:8px">🤝 Ces compteurs se remplissent tout seuls dès que l’outil <b>Prêt de matériel</b> est branché. Un prêt est compté le mois où l’engin est <b>remis</b> ; « actuellement prêtés » compte ceux qui ne sont pas encore revenus.</p>'}}
+        h+='<p class="hint" style="margin-top:8px">🤝 Ces compteurs se remplissent tout seuls dès que l’outil <b>Prêt de matériel</b> est branché. Un prêt est compté le mois où l’engin est <b>remis</b> ; « actuellement prêtés » compte ceux dont la période de mise à disposition court encore.</p>'}}
     else if(sec.id==='vms'){
       const rep=repData(), rows=repMoisRemplis(), cur=ligneMois(rows);
       if(rep&&cur){
@@ -1917,6 +1937,8 @@ function modeopPayload(){
 function appliquer(d){
   if(Array.isArray(d.outils)&&d.outils.length)state.outils=d.outils.map(o=>Object.assign({masque:false},o,{masque:o.masque===true||o.masque==='oui',hse:o.hse===true||o.hse==='oui',links:Array.isArray(o.links)?o.links:[]}));
   if(d.tombOutils&&typeof d.tombOutils==='object')state.tombOutils=d.tombOutils;
+  completerDefauts();          // les tuiles de la version en cours ne disparaissent pas à la synchro
+  state.outils.forEach(o=>{if(!Array.isArray(o.links))o.links=[]});
   if(d.kpi&&typeof d.kpi==='object')state.kpi=d.kpi;
   if(d.kpiMaj&&typeof d.kpiMaj==='object')state.kpiMaj=d.kpiMaj;
   /* on ne garde que des blocs bien formés : un souci serveur ne doit jamais casser la page */
