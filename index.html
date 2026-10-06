@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1830">
+<title>Intranet HSE — CDES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
+     ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
+     débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
+<script src="config.js"></script>
+<script src="js/configuration.js"></script>
+<link rel="stylesheet" href="css/intranet.css">
+</head>
+<body>
+<header>
+  <img id="logo" alt="CDES">
+  <div class="ht"><h1>Intranet HSE</h1><p>Suite des outils HSE — CDES</p></div>
+  <input type="text" id="t-search" class="hsrch no-print" placeholder="🔎 Chercher un outil…" oninput="renderTiles()">
+  <button class="syncpill no-print" id="sync-pill" onclick="syncOuLecture(true)" style="display:none">🔄</button>
+  <button class="syncpill no-print" id="btn-volet" onclick="basculerVolet()">🧰 Outils</button>
+  <button class="syncpill no-print" id="btn-reglages" onclick="go('v-reglages')">⚙️ Réglages</button>
+</header>
+<div class="layout">
+<aside id="volet">
+  <button class="vtog no-print" onclick="basculerVolet()" title="Réduire / agrandir le volet">⟨⟩</button>
+  <nav id="tiles-box"></nav>
+</aside>
+<div id="backdrop" onclick="document.body.classList.remove('menuopen')"></div>
+<main>
+  <section class="view active" id="v-hub">
+    <div id="dash-banner"></div>
+    <div id="ess-box"></div>
+    <div class="bigsec">📊 Tous les indicateurs
+      <span class="seg no-print" style="letter-spacing:normal"><button id="pg-mois" onclick="setPeriode('mois')">Mois</button><button id="pg-annee" class="on" onclick="setPeriode('annee')">Année</button></span>
+      <select id="pg-choixmois" class="no-print" onchange="setMois(this.value)" style="display:none;letter-spacing:normal"></select>
+      <span class="seg no-print" id="pg-agences" style="letter-spacing:normal;margin-left:10px"></span>
+      <span class="no-print" style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨</button></span>
+    </div>
+    <div id="dash-body"></div>
+  </section>
+  <section class="view" id="v-arriv"></section>
+  <section class="view" id="v-modeop">
+    <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
+    <div class="card">
+      <h2>📚 Banque documentaire</h2>
+      <p class="small muted">Flashs Santé-Sécurité et modes opératoires. Le mot cherché peut être dans le titre, dans le nom du fichier ou dans le texte du document.</p>
+      <input type="text" id="bq-q" class="bqsearch" placeholder="🔎 Rechercher… levage, produit chimique, faucardage, ligne de tir" oninput="bqSaisie()">
+      <div class="bqbar no-print">
+        <button class="bqfam on" data-f="" onclick="bqSetFam('')">Tout</button>
+        <button class="bqfam" data-f="flash" onclick="bqSetFam('flash')">📣 Flashs</button>
+        <button class="bqfam" data-f="modeop" onclick="bqSetFam('modeop')">📘 Modes opératoires</button>
+        <select id="bq-sec" onchange="bqSetSec(this.value)"></select>
+        <select id="bq-an" onchange="bqSetAn(this.value)"></select>
+        <span class="bqsp"></span>
+        <button class="btn btn-ghost btn-sm" onclick="rafraichirBanque()" title="Relire les dossiers maintenant">🔄</button>
+        <button class="btn btn-ghost btn-sm edit-mo" onclick="openMO()" title="Ajouter un document qui reste sur OneDrive">＋ Lien</button>
+      </div>
+      <p class="hint" id="bq-compte"></p>
+      <div id="bq-liste"></div>
+    </div>
+  </section>
+  <div class="modal" id="m-zoom"><div class="sheet" style="max-width:820px">
+    <div class="grab"></div>
+    <div id="m-zoom-corps"></div>
+    <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button></div>
+  </div></div>
+  <div class="modal" id="m-mo"><div class="sheet">
+    <div class="grab"></div><h2 id="mo-titre">Mode opératoire</h2>
+    <label class="f">Activité *</label>
+    <input type="text" id="mo-f-act" list="mo-acts" placeholder="Dragage, Faucardage, Transbordement…">
+    <datalist id="mo-acts"></datalist>
+    <label class="f">Titre du document *</label>
+    <input type="text" id="mo-f-titre" placeholder="ex. Faucardage des berges — pelle amphibie">
+    <label class="f">Date de réalisation</label>
+    <input type="date" id="mo-f-date">
+    <label class="f">Lien du document (OneDrive / SharePoint) *</label>
+    <input type="text" id="mo-f-url" placeholder="https://cdes.sharepoint.com/…">
+    <p class="hint">Ouvre le fichier sur OneDrive ▸ Partager ▸ Copier le lien, puis colle-le ici.</p>
+    <label class="f">Note (facultatif)</label>
+    <input type="text" id="mo-f-note" placeholder="ex. version 2, remplace le MO de 2024">
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-danger" id="mo-del" onclick="supprMO()">🗑</button>
+      <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary grow" onclick="saveMO()">Enregistrer</button></div>
+  </div></div>
+  <section class="view" id="v-reglages">
+    <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
+    <div class="card"><h2>🧩 Outils du portail</h2>
+      <p class="small muted">Renseigne les liens, masque ou réordonne les tuiles. Les changements se synchronisent pour tout le monde une fois le webhook branché.</p>
+      <div id="tl-list" style="margin-top:8px"></div>
+      <button class="btn btn-ghost btn-block" onclick="openTuile()">＋ Ajouter un outil</button>
+    </div>
+    <div class="card"><h2>🔄 Synchronisation</h2>
+      <p class="small muted">Colle ici l'adresse du déploiement Apps Script « Intranet HSE ». Tant que ces champs sont vides, la page fonctionne uniquement sur cet appareil.</p>
+      <label class="f">Adresse du webhook (…/exec)</label>
+      <input type="text" id="sy-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      <label class="f">Mot de passe <span class="muted" style="font-weight:400">— fabriqué par le script, à coller une seule fois</span></label>
+      <input type="password" id="sy-secret" placeholder="donné par initialiser() dans le journal Apps Script" autocomplete="new-password">
+      <label class="f">Nom de cet appareil (pour le journal)</label>
+      <input type="text" id="sy-appareil" placeholder="Ex. PC Justin">
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-ghost grow" onclick="testerWebhook()">🔌 Tester la connexion</button>
+        <button class="btn btn-primary grow" onclick="saveSync()">💾 Enregistrer</button></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-accent grow" onclick="syncOuLecture(true)">🔄 Synchroniser maintenant</button>
+        <button class="btn btn-danger" onclick="oublierSync()">Oublier</button></div>
+      <p class="hint" id="sync-etat"></p>
+      <div style="border-top:1px dashed var(--line);margin-top:12px;padding-top:10px">
+        <h3 style="margin-top:0">🔒 Accès à la consultation</h3>
+        <p class="small muted">Le mot de passe de consultation se pose côté serveur, dans la propriété <b>INTRANET_LECTURE</b> du script — jamais dans cette page ni sur GitHub. Chacun le tape une fois sur son appareil, et c'est fini.</p>
+        <button class="btn btn-ghost btn-block" onclick="verrouillerAppareil()">Verrouiller cet appareil</button>
+        <p class="hint">À faire sur une tablette de chantier ou un PC partagé qu'on laisse à quelqu'un d'autre : le mot de passe sera redemandé et les données gardées ici seront effacées.</p>
+      </div>
+      <div id="branchement-box" style="display:none;border-top:1px dashed var(--line);margin-top:12px;padding-top:10px">
+        <h3 style="margin-top:0">Partager l'intranet</h3>
+        <p class="small muted">Le lien « collègue » donne la lecture (portail + indicateurs). Le lien « éditeur » permet en plus de mettre à jour les chiffres et les tuiles.</p>
+        <div class="row">
+          <button class="btn btn-primary grow" onclick="copierLienLecture()">🔗 Lien pour un collègue</button>
+          <button class="btn btn-ghost grow" onclick="copierBranchement()">🛠 Lien éditeur (autre PC)</button></div>
+        <p class="hint">Le lien éditeur contient le mot de passe : envoie-le par SMS ou Teams, pas sur un canal public.</p>
+      </div></div>
+    <div class="card"><h2>💾 Données</h2>
+      <div class="row"><button class="btn btn-ghost grow" onclick="exportJSON()">⬇ Sauvegarde</button><button class="btn btn-ghost grow" onclick="document.getElementById('imp').click()">⬆ Restaurer</button><input type="file" id="imp" accept="application/json" style="display:none" onchange="importJSON(this)"></div>
+      <p class="hint" id="apropos">Intranet HSE CDES</p></div>
+  </section>
+</main>
+</div>
+
+<!-- modal édition d'un KPI -->
+<!-- modal fiche d'un nouvel arrivant -->
+<!-- ÉCRAN DE DÉVERROUILLAGE — rien ne s'affiche derrière tant qu'il est là -->
+<div id="verrou"><div class="vbox">
+  <img id="logo-verrou" alt="CDES">
+  <h1>Intranet HSE — CDES</h1>
+  <p class="vs">Cette page est réservée au personnel CDES.<br>Tape le mot de passe de consultation : cet appareil s’en souviendra.</p>
+  <input type="password" id="vr-mdp" placeholder="Mot de passe" autocomplete="current-password"
+         onkeydown="if(event.key==='Enter')validerVerrou()">
+  <p id="vr-msg"></p>
+  <button class="btn btn-primary btn-block" id="vr-btn" style="margin-top:12px" onclick="validerVerrou()">Entrer</button>
+  <p class="vpied">Le mot de passe est vérifié par le serveur : tant qu’il n’est pas bon, aucune donnée n’est envoyée à cet appareil.<br>Tu l’as oublié ? Demande-le au service HSE.</p>
+</div></div>
+
+<div class="modal" id="m-arriv"><div class="sheet" style="max-width:640px">
+  <div class="grab"></div><h2 id="ma-titre">Nouvel arrivant</h2>
+  <p class="small muted">Tout le monde peut compléter cette fiche. Rien n\'est supprimé, et chaque modification est tracée.</p>
+  <label class="f">Nom et prénom *</label><input type="text" id="ma-nom" autocomplete="off" placeholder="Ex. CAILLERET Noah">
+  <div class="row">
+    <div class="grow"><label class="f">Statut</label>
+      <select id="ma-statut">
+        <option>Nouvel embauché</option><option>Nouveau poste de travail</option><option>Intérimaire</option><option>Stagiaire / alternant</option>
+      </select></div>
+    <div style="width:120px"><label class="f">Agence</label>
+      <select id="ma-agence"><option value="">—</option><option>IDF</option><option>NA</option><option>BPL</option></select></div>
+  </div>
+  <div class="row">
+    <div class="grow"><label class="f">Poste de travail</label><input type="text" id="ma-poste" placeholder="Ex. Marinier, soudeur, conducteur de travaux"></div>
+    <div style="width:150px"><label class="f">Arrivée / changement</label><input type="date" id="ma-arrivee"></div>
+  </div>
+  <h3 style="margin:16px 0 4px;font-size:14px">Accompagnement</h3>
+  <div class="row">
+    <div class="grow"><label class="f">Tuteur</label><input type="text" id="ma-tuteur" placeholder="Qui accompagne ?"></div>
+    <div class="grow"><label class="f">Chantier</label><input type="text" id="ma-chantier"></div>
+  </div>
+  <div class="row">
+    <div class="grow"><label class="f">Début</label><input type="date" id="ma-debut"></div>
+    <div class="grow"><label class="f">Fin</label><input type="date" id="ma-fin"></div>
+  </div>
+  <label class="f">Notions abordées</label><input type="text" id="ma-notions" placeholder="Ex. Conduite d’une pelle sur ponton">
+  <div class="row">
+    <div class="grow"><label class="f">Acquisition</label>
+      <select id="ma-acq"><option value="">—</option><option>Acquis</option><option>En cours</option></select></div>
+    <div class="grow"><label class="f">Autonomie</label>
+      <select id="ma-auto"><option value="">—</option><option>Autonome</option><option>Supervisé</option><option>Accompagné</option></select></div>
+  </div>
+  <label class="f">Commentaires</label><input type="text" id="ma-notes" placeholder="Décisions, points à revoir…">
+  <div class="row" style="margin-top:14px">
+    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary grow" onclick="saveArrivant()">Enregistrer</button></div>
+</div></div>
+
+<div class="modal" id="m-kpi"><div class="sheet">
+  <div class="grab"></div><h2 id="mk-titre">Mettre à jour</h2>
+  <p class="small muted" id="mk-sous"></p>
+  <label class="f" id="mk-lbl">Valeur</label>
+  <input type="text" id="mk-val" autocomplete="off">
+  <p class="hint" id="mk-hint"></p>
+  <div class="row" style="margin-top:14px">
+    <button class="btn btn-danger" onclick="effacerKpi()">Effacer</button>
+    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary grow" onclick="saveKpi()">Enregistrer</button></div>
+</div></div>
+
+<!-- modal édition d'une tuile -->
+<div class="modal" id="m-tuile"><div class="sheet">
+  <div class="grab"></div><h2 id="mt-titre">Outil</h2>
+  <div class="row"><div style="width:90px"><label class="f">Icône</label><input type="text" id="mt-ico" placeholder="🧰"></div>
+  <div class="grow"><label class="f">Nom *</label><input type="text" id="mt-nom" placeholder="Nom de l'outil"></div></div>
+  <label class="f">Description courte</label><input type="text" id="mt-desc" placeholder="À quoi sert cet outil ?">
+  <label class="f">Catégorie</label><select id="mt-cat"></select>
+  <label class="f">Adresse de l'outil (lien)</label><input type="text" id="mt-url" placeholder="https://…">
+  <p class="hint">Pour la fiche d'émargement QHP, colle le « lien pour un conducteur » généré par le suivi QHP.</p>
+  <div style="border-top:1px dashed var(--line);margin-top:12px;padding-top:8px">
+    <label class="f">Menu déroulant (plusieurs liens)</label>
+    <p class="hint">Si tu ajoutes des liens ici, la tuile ouvre un menu au lieu d'un lien unique — parfait pour les formulaires Vigiminute, les fiches par poste ou les sheets de reporting.</p>
+    <div id="mt-links"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addLien()">＋ Ajouter un lien au menu</button>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px"><input type="checkbox" id="mt-hse" style="width:auto"> Outil du service HSE (visible seulement quand la case dédiée est cochée sur l'accueil)</label>
+  <div class="row" style="margin-top:14px">
+    <button class="btn btn-danger" id="mt-del" onclick="supprTuile()">🗑</button>
+    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary grow" onclick="saveTuile()">Enregistrer</button></div>
+</div></div>
+
+<!-- modal menu de liens d'une tuile -->
+<div class="modal" id="m-liens"><div class="sheet">
+  <div class="grab"></div><h2 id="ml-titre">Liens</h2>
+  <p class="small muted" id="ml-sous"></p>
+  <div id="ml-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+  <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal()">Fermer</button>
+</div></div>
+
+<div id="toast"></div>
+<script src="js/intranet.js"></script>
+</body>
+</html>
