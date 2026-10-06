@@ -1,4 +1,4 @@
-const APP_VERSION='V1';
+const APP_VERSION='V28';
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -238,6 +238,14 @@ let state={outils:[],kpi:{},kpiMaj:{},tombOutils:{},modeop:[],tombModeop:{},arri
    = cet appareil l'a déjà fait valider par le serveur. Ni l'un ni l'autre ne
    voyage dans la page ou dans config.js : ils vivent dans CE navigateur. */
 let conf={webhook:'',secret:'',appareil:'',autoSync:true,affHSE:false,lecture:'',deverrouille:false};
+/* V28 — LES LIENS DE BRANCHEMENT DES OUTILS. Règle de Justin : un seul mot de
+   passe pour les collaborateurs, celui de l'intranet. Une fois le verrou passé,
+   le serveur envoie les liens « …/#config=… » des outils (prêt, QHP, PDP…) et la
+   page les pose sur les tuiles : l'outil s'ouvre déjà branché, personne ne tape
+   rien. Ces liens contiennent des secrets : ils vivent EN MÉMOIRE seulement —
+   jamais dans localStorage — et s'effacent quand on verrouille l'appareil. */
+let liensOutils={};
+function lienOutil(o){const l=liensOutils&&liensOutils[o.id];return (typeof l==='string'&&/^https:\/\//.test(l))?l:(o.url||'')}
 let qhpAuto=null, repAuto=null, objAuto=null, editMode=false, kpiEnCours=null, tuileEnCours=null;
 let periode='annee', moisChoisi='';
 /* '' = Global (toutes agences confondues) */
@@ -387,7 +395,8 @@ function tuileHtml(o){
   if(o.id==='modeop')return '<div class="tile" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';
   const liens=(o.links||[]).filter(l=>l&&l.u);
   if(liens.length)return '<div class="tile menu" onclick="openLiens(\''+o.id+'\')" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span><span class="men">▾ '+liens.length+'</span></div>';
-  if(o.url)return '<a class="tile" href="'+esc(o.url)+'" target="_blank" rel="noopener" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></a>';
+  const u=lienOutil(o);   // V28 : le lien de branchement reçu du serveur l'emporte sur l'adresse nue
+  if(u)return '<a class="tile'+(u!==o.url?' branche':'')+'" href="'+esc(u)+'" target="_blank" rel="noopener" title="'+esc(o.nom)+(u!==o.url?' — s’ouvre déjà branché':'')+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></a>';
   return '<div class="tile off" onclick="tuileSansLien(\''+o.id+'\')" title="Lien à renseigner dans Réglages ▸ Outils du portail">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'}
 /* ==================== CERTIFICATION MASE ====================
  * Note d'audit, période de validité, certificat et synoptique : tout est
@@ -1491,6 +1500,26 @@ function openArrivant(id){
   document.getElementById('ma-auto').value=(a&&a.autonomie)||'';
   document.getElementById('m-arriv').classList.add('open');
 }
+/* RETIRER UNE FICHE — réservé aux appareils ÉDITEURS (ceux qui ont le secret).
+   Tout le monde peut cocher et ajouter ; retirer, non : sur une page ouverte à
+   tous, une fausse manip effacerait le suivi d'un collègue. La ligne reçoit une
+   pierre tombale dans le classeur — elle est récupérable, et la collecte de nuit
+   ne la recrée pas depuis l'accueil sécurité d'origine. */
+async function supprimerArrivant(id){
+  const a=(state.arrivants||[]).find(x=>x.id===id); if(!a)return;
+  if(!estEditeur()){toast('Seul un appareil éditeur peut retirer une fiche',true);return}
+  if(!confirm('Retirer « '+(a.nom||'cette fiche')+' » du suivi des nouveaux arrivants ?\n\nLa ligne reste dans l’onglet ARRIVANTS du classeur : tu peux la remettre à la main si besoin.'))return;
+  try{
+    const j=await appel({secret:conf.secret,action:'arrivants-suppr',
+      appareil:conf.appareil||nomAppareil(),data:{ids:[id]}});
+    if(j.data&&Array.isArray(j.data.arrivants))state.arrivants=j.data.arrivants;
+    save();renderArrivants();if(typeof renderDash==='function')renderDash();
+    toast(j.supprimes?('🗑️ '+(a.nom||'Fiche')+' retiré(e)'):'Cette fiche était déjà retirée');
+  }catch(e){
+    if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.');return}
+    toast('Échec : '+(e.message||'?'),true);
+  }
+}
 function saveArrivant(){
   const g=k=>document.getElementById(k).value.trim();
   const nom=g('ma-nom');
@@ -1524,7 +1553,7 @@ function renderArrivants(){
   const complets=tous.filter(arrivComplet).length;
   let h='<div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go(\'v-hub\')">← Retour au tableau de bord</button></div>';
   h+='<div class="card"><h2>🎒 Suivi des nouveaux arrivants</h2>';
-  h+='<p class="small muted">Tout le monde peut compléter cette page, sans mot de passe. '
+  h+='<p class="small muted">Tout le monde peut compléter cette page : pas besoin du mot de passe éditeur. '
     +'<b>Coche une case</b> et l’étape est validée à la date du jour ; tant qu’elle '
     +'n’est pas finie, dis où elle en est avec le petit menu à droite '
     +'(« rédigée », « en cours de signature »…). '
@@ -1565,7 +1594,9 @@ function renderArrivants(){
         +(a.agence?'<span class="apill'+(ag?' ag-'+ag:'')+'">'+esc(a.agence)+'</span>':'')
         +'<span class="amut">'+esc(a.poste||'')+(a.arrivee?' · arrivé le '+esc(frDate(a.arrivee)):'')+'</span>'
         +'<span class="aprog">'+faits+'/'+JALONS.length+'</span>'
-        +'<button class="btn btn-ghost btn-sm no-print" onclick="openArrivant(\''+esc(a.id)+'\')">✏️</button></div>';
+        +'<button class="btn btn-ghost btn-sm no-print" onclick="openArrivant(\''+esc(a.id)+'\')" title="Modifier la fiche">✏️</button>'
+        +(estEditeur()?'<button class="btn btn-ghost btn-sm no-print apoub" onclick="supprimerArrivant(\''+esc(a.id)+'\')" title="Retirer cette fiche du suivi">🗑️</button>':'')
+        +'</div>';
       h+='<div class="ajal">';
       JALONS.forEach(j=>{
         const fait=String(a[j.c]||'').trim(), et=etapeDe(a,j.c);
@@ -1600,7 +1631,9 @@ function renderArrivants(){
     });
     h+='</div>';
   }
-  h+='<p class="hint" style="margin-top:12px">Une fiche à retirer ? Seul un appareil éditeur peut le faire, directement dans l’onglet <b>ARRIVANTS</b> du classeur — c’est volontaire.</p>';
+  h+='<p class="hint" style="margin-top:12px">'+(estEditeur()
+    ? 'La 🗑️ retire une fiche du suivi. La ligne reste dans l’onglet <b>ARRIVANTS</b> du classeur : rien n’est perdu, et la collecte de nuit ne la fait pas revenir.'
+    : 'Une fiche en trop ou en double ? Seul un appareil éditeur peut la retirer — c’est volontaire : ici tout le monde peut cocher et ajouter, personne ne peut effacer le suivi d’un collègue.')+'</p>';
   h+='</div>';
   box.innerHTML=h;
 }
@@ -1886,6 +1919,7 @@ function appliquer(d){
   if(d.rep&&Array.isArray(d.rep.mois))repAuto=d.rep;
   if(Array.isArray(d.arrivants))state.arrivants=d.arrivants;
   if(Array.isArray(d.modeop))state.modeop=d.modeop;
+  if(d.liens&&typeof d.liens==='object'&&!Array.isArray(d.liens))liensOutils=d.liens;   // V28 — en mémoire seulement
   if(d.tombModeop&&typeof d.tombModeop==='object')state.tombModeop=d.tombModeop;
   save()}
 async function syncOuLecture(manuel){
@@ -2000,7 +2034,7 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;saveConfLS()}
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;liensOutils={};saveConfLS()}
 /* Renvoie 'ok' · 'refus' (mot de passe faux) · 'reseau' (serveur injoignable). */
 async function essayerMotDePasse(mdp){
   try{
