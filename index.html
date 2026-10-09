@@ -113,6 +113,7 @@
       <div style="border-top:1px dashed var(--line);margin-top:12px;padding-top:10px">
         <h3 style="margin-top:0">🔒 Accès à la consultation</h3>
         <p class="small muted">Le mot de passe de consultation se pose côté serveur, dans la propriété <b>INTRANET_LECTURE</b> du script — jamais dans cette page ni sur GitHub. Chacun le tape une fois sur son appareil, et c'est fini.</p>
+        <label class="row" style="gap:8px;align-items:center;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="opt-partage" onchange="reglerPartage(this.checked)"> <span>Appareil <b>partagé</b> (tablette de chantier, PC commun) : redemander le mot de passe à chaque ouverture</span></label>
         <button class="btn btn-ghost btn-block" onclick="verrouillerAppareil()">Verrouiller cet appareil</button>
         <p class="hint">À faire sur une tablette de chantier ou un PC partagé qu'on laisse à quelqu'un d'autre : le mot de passe sera redemandé et les données gardées ici seront effacées.</p>
       </div>
