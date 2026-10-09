@@ -1,4 +1,4 @@
-const APP_VERSION='V28';
+const APP_VERSION='V28.3';
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -237,7 +237,7 @@ let state={outils:[],kpi:{},kpiMaj:{},tombOutils:{},modeop:[],tombModeop:{},arri
 /* `lecture` = mot de passe de consultation tapé par l'utilisateur, `deverrouille`
    = cet appareil l'a déjà fait valider par le serveur. Ni l'un ni l'autre ne
    voyage dans la page ou dans config.js : ils vivent dans CE navigateur. */
-let conf={webhook:'',secret:'',appareil:'',autoSync:true,affHSE:false,lecture:'',deverrouille:false};
+let conf={webhook:'',secret:'',appareil:'',autoSync:true,affHSE:false,lecture:'',deverrouille:false,deverrouilleLe:'',expireJours:30,partage:false};
 /* V28 — LES LIENS DE BRANCHEMENT DES OUTILS. Règle de Justin : un seul mot de
    passe pour les collaborateurs, celui de l'intranet. Une fois le verrou passé,
    le serveur envoie les liens « …/#config=… » des outils (prêt, QHP, PDP…) et la
@@ -1878,7 +1878,7 @@ function verifierUrl(u){
   if(/\/dev\/?$/.test(u))return "Cette adresse finit par /dev : c'est l'adresse de TEST. Il te faut celle qui finit par /exec — Déployer ▸ Gérer les déploiements ▸ copier l'URL de l'application Web.";
   return ''}
 async function appel(payload,ms){
-  const url=payload.action==='lecture'?webhookLecture():(conf.webhook||webhookLecture());
+  const url=(payload.action==='lecture'||payload.action==='verrou')?webhookLecture():(conf.webhook||webhookLecture());
   /* Toute requête emporte le mot de passe connu de cet appareil, sauf celles qui
      en portent déjà un (la synchro éditeur, le test de connexion). */
   if(payload.secret===undefined&&conf.lecture)payload=Object.assign({},payload,{secret:conf.lecture});
@@ -1920,6 +1920,7 @@ function appliquer(d){
   if(Array.isArray(d.arrivants))state.arrivants=d.arrivants;
   if(Array.isArray(d.modeop))state.modeop=d.modeop;
   if(d.liens&&typeof d.liens==='object'&&!Array.isArray(d.liens))liensOutils=d.liens;   // V28 — en mémoire seulement
+  if(typeof d.expireJours==='number'){conf.expireJours=d.expireJours;saveConfLS()}        // V28.3
   if(d.tombModeop&&typeof d.tombModeop==='object')state.tombModeop=d.tombModeop;
   save()}
 async function syncOuLecture(manuel){
@@ -2034,13 +2035,31 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;liensOutils={};saveConfLS()}
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};saveConfLS()}
+function verrouExpire(){
+  const n=Number(conf.expireJours); if(!(n>0))return false;
+  const t=Date.parse(conf.deverrouilleLe||''); if(!isFinite(t))return true;   // déverrouillé avant la V28.3 : on redemande une fois
+  return (Date.now()-t)>n*864e5;
+}
+/* Réglages ▸ « appareil partagé » */
+function reglerPartage(on){
+  conf.partage=!!on;saveConfLS();
+  toast(on?'Appareil partagé : le mot de passe sera demandé à chaque ouverture.':'Appareil personnel : le mot de passe reste mémorisé.');
+}
 /* Renvoie 'ok' · 'refus' (mot de passe faux) · 'reseau' (serveur injoignable). */
 async function essayerMotDePasse(mdp){
   try{
-    const j=await appel({action:'lecture',appareil:conf.appareil||'visiteur',secret:mdp},25000);
-    conf.lecture=mdp;conf.deverrouille=true;conf.dernierSync=nowISO();saveConfLS();
-    appliquer(j.data||{});
+    /* V28.2 : vérification légère ('verrou'), sans attendre les indicateurs — ils
+       arrivent par la synchro lancée juste après l'ouverture. Un serveur d'avant
+       la V28.2 ne connaît pas 'verrou' : on retombe alors sur 'lecture'. */
+    let j;
+    try{ j=await appel({action:'verrou',appareil:conf.appareil||'visiteur',secret:mdp},25000); }
+    catch(e){ if(e&&e.verrou)throw e; j=await appel({action:'lecture',appareil:conf.appareil||'visiteur',secret:mdp},25000); }
+    conf.lecture=mdp;conf.deverrouille=true;conf.deverrouilleLe=nowISO();
+    if(typeof j.expireJours==='number')conf.expireJours=j.expireJours;
+    saveConfLS();
+    if(j.data)appliquer(j.data);
+    else if(j.liens&&typeof j.liens==='object'&&!Array.isArray(j.liens))liensOutils=j.liens;
     return 'ok';
   }catch(e){return (e&&e.verrou)?'refus':'reseau'}
 }
@@ -2073,11 +2092,18 @@ function lancerSynchros(){
   window.addEventListener('online',()=>syncOuLecture(false));
 }
 async function demarrer(){
+  try{const cb=document.getElementById('opt-partage');if(cb)cb.checked=!!conf.partage}catch(e){}
   // pas de webhook : mode démonstration, il n'y a rien à protéger
   if(!webhookLecture()){ouvrirAppli();return}
+  /* V28.3 — appareil PARTAGÉ (tablette de chantier, PC commun) : le mot de passe
+     est redemandé à chaque ouverture et rien ne reste en cache. */
+  if(conf.partage&&conf.deverrouille){oublierVerrou();try{localStorage.removeItem(LS)}catch(e){}}
+  /* V28.3 — expiration : au-delà de N jours (servi par le serveur, 30 par défaut),
+     on redemande le mot de passe. 0 = jamais. */
+  if(conf.deverrouille&&verrouExpire()){oublierVerrou();montrerVerrou('Par sécurité, le mot de passe est redemandé tous les '+conf.expireJours+' jours.');return}
   // appareil déjà déverrouillé : on ouvre tout de suite, même hors ligne
   if(conf.deverrouille){ouvrirAppli();lancerSynchros();return}
-  montrerVerrou('');
+  montrerVerrou(conf.partage?'Appareil partagé : mot de passe demandé à chaque ouverture.':'');
   /* Essai à blanc, sans mot de passe : si le verrou n'est pas posé côté serveur,
      personne ne doit être embêté — la page s'ouvre comme avant. */
   const r=await essayerMotDePasse('');
