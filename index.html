@@ -63,6 +63,7 @@
   <section class="view" id="v-arriv"></section>
   <section class="view" id="v-rem"></section>
   <section class="view" id="v-qhp"></section>
+  <section class="view" id="v-retex"></section>
   <!-- ZONE HSE (V3) : le Reporting, affiché dans l'intranet. Le cadre n'est chargé
        que si cet appareil a le code éditeur ; sans lui, l'entrée n'existe pas. -->
   <section class="view" id="v-hse">
@@ -182,6 +183,20 @@
   <div id="md-corps"></div>
   <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" id="md-env" onclick="envoyerDeclaration()">Envoyer</button></div>
 </div></div>
+<!-- V3.3.3 : RETEX de fin de chantier -->
+<div class="modal" id="m-retex"><div class="sheet rx-sheet">
+  <div class="grab"></div><h2 id="mrx-titre">Nouveau RETEX de fin de chantier</h2>
+  <p class="small muted">Les colonnes du tableau des bilans de fin de chantier. Seuls l’agence et le chantier sont obligatoires : on peut compléter plus tard.</p>
+  <h3 class="rx-fs">🏗️ Le chantier</h3><div id="mrx-tete"></div>
+  <h3 class="rx-fs">🦺 Événements significatifs SSE</h3><div id="mrx-evts"></div>
+  <h3 class="rx-fs">📘 Le bilan</h3><div id="mrx-phases"></div>
+  <h3 class="rx-fs">📷 Photos, plans, schémas</h3><div id="mrx-photos"></div>
+  <div class="row" style="margin-top:16px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" id="mrx-ok" onclick="enregistrerRetex()">Enregistrer le RETEX</button></div>
+</div></div>
+<div class="modal" id="m-rxphoto" onclick="if(event.target===this)closeModal()"><div class="sheet rx-lb">
+  <div class="row" style="align-items:center;margin-bottom:8px"><span id="rxlb-n" class="small muted grow"></span><button class="btn btn-ghost btn-sm" onclick="retexLbPas(-1)">‹</button><button class="btn btn-ghost btn-sm" onclick="retexLbPas(1)">›</button><button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button></div>
+  <div id="rxlb-img" class="mph-item"></div>
+</div></div>
 <div class="modal" id="m-photos"><div class="sheet" style="max-width:720px">
   <div class="grab"></div><h2 id="mph-titre">📷 Photo</h2>
   <p class="small muted" id="mph-sujet"></p>
@@ -283,6 +298,7 @@
 <script src="js/bulletin.js"></script>
 <script src="js/terrain.js"></script>
 <script src="js/qhp.js"></script>
+<script src="js/retex.js"></script>
 <script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 </script>

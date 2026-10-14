@@ -1,9 +1,10 @@
-# Intranet HSE — CDES (V3.3)
+# Intranet HSE — CDES (V3.3.3)
 
 Une seule page pour tout le monde : accueil (indicateurs + outils), suivi des nouveaux
 arrivants, documents, et — pour le service HSE seulement — la zone HSE (ex-Reporting).
 
 - `index.html` · `css/intranet.css` · `js/intranet.js` — l'intranet
+- `js/retex.js` — 📘 RETEX de fin de chantier (liste par agence, fiche, formulaire avec photos, import des tableaux Excel convertis)
 - `js/qhp.js` — 🎓 espace QHP (vidéo, flash, quiz, émargement) et son édition
 - `js/terrain.js` — ⚡ Signaler, 📬 suivi des remontées terrain, 🚨 pré-déclaration d'accident, ✅ to-do HSE
 - `js/bulletin.js` — l'accueil « bulletin HSE » (faits marquants, AT, reporting N-1/N, Vigiminutes, QHP, flashs) et le mode affichage `?affichage=IDF`

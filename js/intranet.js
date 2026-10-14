@@ -1,5 +1,4 @@
-const APP_VERSION='V3.3.3';   // 14/10/2026 — tuile Banque documentaire branchée sur BANQUE_URL (point vert, Réglages, toute tuile nommée « Banque documentaire »)
-const APP_VERSION_PREC='V3.3.2';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
+const APP_VERSION='V3.3.3';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -32,7 +31,7 @@ const DEF_OUTILS=[
  {id:'pretmat',cat:'Pour sensibiliser les nouveaux arrivants',ico:'🤝',nom:'Prêt de matériel',desc:'Convention et fiche de prêt pour les conducteurs extérieurs',url:''},
  {id:'modeop',cat:'Pour prévenir les risques',ico:'📚',nom:'Banque documentaire',desc:'Flashs Santé-Sécurité et modes opératoires, cherchables par mot clé',url:''},
  // — Culture HSE —
- {id:'retex',cat:'Culture HSE',ico:'📣',nom:'Flashs RETEX',desc:'Retours d’expérience et flashs sécurité',url:''},
+ {id:'retex',cat:'Culture HSE',ico:'📘',nom:'RETEX chantiers',desc:'Bilans de fin de chantier : ce qu’on retient de chaque chantier',url:''},
  // — Outils service HSE (visibles via la case dédiée) —
  {id:'analyseacc',cat:CAT_HSE,ico:'🚨',nom:'Analyse d’accident',desc:'Recueil des faits, arbre des causes, rapport',url:'https://outilshse.github.io/AnalyseAccident/',hse:true},
  {id:'suiviqhp',cat:CAT_HSE,ico:'📋',nom:'Suivi des QHP',desc:'Fiches, bilan mensuel et annuel des Quarts d’Heure Prévention',url:'',hse:true},
@@ -318,6 +317,7 @@ function agencesDispo(){const g=repGlobal();return (g&&Array.isArray(g.agences)&
 function ventilationDispo(){const g=repGlobal();return !!(g&&g.parAgence)}
 function setAgence(a){agenceChoisie=a;conf.agence=a;saveConfLS();renderDash();renderEssentiels();majBascule();
   if(typeof arrivFiltre!=='undefined'){arrivFiltre.agence=a||'';if(document.getElementById('v-arriv').classList.contains('active'))renderArrivants()}
+  try{if(document.getElementById('v-retex').classList.contains('active')&&typeof renderRetex==='function')renderRetex();}catch(e){}
   try{if(document.getElementById('v-rem').classList.contains('active'))renderRemontees();if(document.getElementById('v-hse').classList.contains('active'))renderTodo()}catch(e){}
   envoyerAgenceHSE()}
 function objData(){return objAuto||(demoMode()?DEMO_OBJ:null)}
@@ -393,6 +393,7 @@ function go(v){
   if(v==='v-arriv')renderArrivants();
   if(v==='v-rem'&&typeof renderRemontees==='function')renderRemontees();
   if(v==='v-qhp'&&typeof renderQhp==='function')renderQhp();
+  if(v==='v-retex'&&typeof renderRetex==='function'){retexVue.id=null;renderRetex()}
   if(v==='v-hse'){ouvrirZoneHSE();if(typeof renderTodo==='function')renderTodo()}
   document.body.classList.remove('menuopen');
   majNav();
@@ -433,13 +434,9 @@ const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" s
 function outilsTries(){return state.outils.filter(o=>!o.supprime).sort((a,b)=>(a.ordre||0)-(b.ordre||0))}
 function iconeHtml(o){const s=ICONES[o.id];return '<span class="ti'+(s?'':' emo')+'">'+(s||esc(o.ico||'🧰'))+'</span>'}
 const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Outils service HSE':'#2E86C8'};
-/* V3.3.3 : la banque est un ÉCRAN de l'intranet, pas un outil externe. Sa tuile
-   est reconnue par son id d'origine OU par son nom (une tuile recréée à la main
-   s'appelle « Banque documentaire » mais n'a pas l'id modeop), et elle est
-   « branchée » (point vert) dès que config.js porte une BANQUE_URL. */
-function estTuileBanque(o){return !!o&&(o.id==='modeop'||/banque\s+documentaire/i.test(String(o.nom||'')))}
 function tuileHtml(o){
-  if(estTuileBanque(o)&&!(o.links||[]).some(l=>l&&l.u)&&!o.url)return '<div class="tile'+(banqueUrl()?' branche':'')+'" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires'+(banqueUrl()?' (service branché)':' (service pas encore branché : BANQUE_URL dans config.js)')+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';
+  if(o.id==='modeop')return '<div class="tile" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'
+  if(o.id==='retex')return '<div class="tile" onclick="go(\'v-retex\')" title="RETEX de fin de chantier">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'   // V3.3.3;
   const liens=(o.links||[]).filter(l=>l&&l.u);
   if(liens.length)return '<div class="tile menu" onclick="openLiens(\''+o.id+'\')" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span><span class="men">▾ '+liens.length+'</span></div>';
   const u=lienOutil(o);   // V28 : le lien de branchement reçu du serveur l'emporte sur l'adresse nue
@@ -1866,7 +1863,7 @@ function renderReglages(){
   const list=outilsTries();
   box.innerHTML=list.map((o,i)=>'<div class="tl'+(o.masque?' masque':'')+'">'+
     '<span class="ti2">'+(ICONES[o.id]||esc(o.ico||'🧰'))+'</span>'+
-    '<span class="n2"><b>'+esc(o.nom)+(o.hse?' <span class="pill mid">HSE</span>':'')+(o.masque?' <span class="pill n">masqué</span>':'')+'</b><span>'+((o.links&&o.links.length)?('menu · '+o.links.length+' lien'+(o.links.length>1?'s':'')):(o.url?esc(o.url):(estTuileBanque(o)?(banqueUrl()?'✅ écran intégré · service branché (config.js)':'⚠ écran intégré · BANQUE_URL vide dans config.js'):'⚠ lien à renseigner')))+'</span></span>'+
+    '<span class="n2"><b>'+esc(o.nom)+(o.hse?' <span class="pill mid">HSE</span>':'')+(o.masque?' <span class="pill n">masqué</span>':'')+'</b><span>'+((o.links&&o.links.length)?('menu · '+o.links.length+' lien'+(o.links.length>1?'s':'')):(o.url?esc(o.url):'⚠ lien à renseigner'))+'</span></span>'+
     '<button title="Monter" onclick="bougeTuile(\''+o.id+'\',-1)">▲</button>'+
     '<button title="Descendre" onclick="bougeTuile(\''+o.id+'\',1)">▼</button>'+
     '<button title="'+(o.masque?'Afficher':'Masquer')+'" onclick="masqueTuile(\''+o.id+'\')">'+(o.masque?'👁':'🚫')+'</button>'+
@@ -1986,6 +1983,7 @@ function appliquer(d){
   try{localStorage.setItem('ihse_cache_v1',JSON.stringify({qhp:qhpAuto,obj:objAuto,rep:repAuto,quand:nowISO()}))}catch(e){}
   if(Array.isArray(d.arrivants))state.arrivants=d.arrivants;
   if(Array.isArray(d.remontees))state.remontees=d.remontees;        // V3.3
+  if(Array.isArray(d.retex))state.retex=d.retex;                    // V3.3.3
   if(Array.isArray(d.qhpThemes))state.qhpThemes=d.qhpThemes;        // V3.3 p3
   if(d.tombQhpThemes&&typeof d.tombQhpThemes==='object')state.tombQhpThemes=d.tombQhpThemes;
   if(d.todo&&typeof d.todo==='object')state.todo=d.todo;             // V3.3 (éditeur)
@@ -2000,7 +1998,7 @@ function appliquer(d){
     if(act&&act.id==='v-rem'&&typeof renderRemontees==='function')renderRemontees();
     if(act&&act.id==='v-qhp'&&typeof renderQhp==='function')renderQhp();
     if(act&&act.id==='v-hse'&&typeof renderTodo==='function')renderTodo();
-    if(act&&act.id==='v-modeop')renderBanque();}catch(e){}
+    if(act&&act.id==='v-modeop')renderBanque();if(act&&act.id==='v-retex'&&typeof renderRetex==='function')renderRetex();}catch(e){}
 }
 async function syncOuLecture(manuel){
   if(!webhookLecture()){if(manuel)toast('Renseigne d’abord l’adresse du webhook',true);return false}
