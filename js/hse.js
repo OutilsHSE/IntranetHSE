@@ -406,10 +406,10 @@ function sourceAuto(c){
    part. Un doute porte un identifiant : « ✓ Vu » le range (mémorisé sur cet appareil). */
 const NOTES_COL = [
   [['heures'],{src:'Paie — exports « occupation » (horaire = heures pointées, forfait = jours × 7 h)',
-    txt:'Janvier→juin : le total de l’ancien reporting est conservé ; NA et BPL sont calculées depuis les exports (+ DUBESSET 35 h/sem jusqu’au 16/07), IDF = le reste. Juillet→août : IDF vient des exports, en orange (à vérifier). Depuis septembre : à saisir par agence.',
+    txt:'Janvier→juin : le total de l’ancien reporting est conservé ; NA et BPL sont calculées depuis les exports, IDF = le reste. Juillet→août : IDF vient des exports, en orange (à vérifier). Depuis septembre : à saisir par agence.',
     doute:{id:'heures-erp',txt:'L’ERP sort du reporting les collaborateurs sortis de l’effectif : les exports sous-estiment le total (≈ 1 300 h/mois de moins que ton reporting). Juillet et août sont donc probablement un peu bas — à corriger si tu as le vrai total.'}}],
   [['effectif'],{src:'Paie — exports « occupation » : présents dans le mois (congés compris)',
-    txt:'Même règle que les heures : janvier→juin, l’effectif de l’ancien reporting est conservé, NA et BPL comptés depuis les exports (+ DUBESSET jusqu’en juillet), IDF = le reste. Juillet→août : IDF depuis les exports, en orange.',
+    txt:'Même règle que les heures : janvier→juin, l’effectif de l’ancien reporting est conservé, NA et BPL comptés depuis les exports, IDF = le reste. Juillet→août : IDF depuis les exports, en orange.',
     doute:{id:'effectif-auto',txt:'Le roster QHP porte l’agence de chaque personne : je peux l’automatiser si tu veux — dis-le moi.'}}],
   [['accArret','accSans','benins','trajet'],{src:'Journal d’analyses d’accident — onglet ACCIDENTS (agence, date, type, zone, jours d’arrêt…)',dep:'sept. 2026',
     txt:'Comptés par mois et par agence depuis la bascule — plus de saisie. L’agence, la date et le type viennent de la fiche ACCIDENTS ; les actions RETEX s’y rattachent par la personne. Avant : ancien reporting, IDF ; juillet-août comptés depuis les fiches, en orange.',

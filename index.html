@@ -23,7 +23,7 @@
   <span class="seg agsel no-print" id="pg-agences" title="Agence affichée sur toute la page"></span>
   <nav id="nav" class="no-print">
     <button id="nav-hub" class="on" onclick="go('v-hub')">🏠 <span>Accueil</span></button>
-    <button id="nav-arriv" onclick="go('v-arriv')">🎒 <span>Arrivants</span></button>
+    <button id="nav-arriv" onclick="go('v-arriv')">👷 <span>Arrivants</span></button>
     <button id="nav-rem" onclick="go('v-rem')">📬 <span>Remontées</span></button>
     <button id="nav-qhp" onclick="go('v-qhp')">🎓 <span>QHP</span></button>
     <button id="nav-modeop" onclick="go('v-modeop')">📚 <span>Documents</span></button>
@@ -165,18 +165,20 @@
 </div></div>
 
 
-<!-- V3.3 Terrain : signaler, pré-déclarer, action sur une remontée -->
-<div class="modal" id="m-signal"><div class="sheet" style="max-width:600px">
-  <div class="grab"></div><h2>⚡ Signaler</h2>
-  <p class="small muted">Pour les encadrants : une situation dangereuse, un presqu’accident, une bonne pratique, un point d’amélioration. Trente secondes.</p>
-  <div id="ms-corps"></div>
-  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="envoyerSignalement()">⚡ Envoyer</button></div>
+<!-- V3.3.2 Terrain : UN SEUL bouton « Déclarer » (retour de Justin) — le type choisi
+     décide où ça part : situation dangereuse / presqu'AT / PA / BP → REMONTEES
+     (même table que les Vigiminutes) ; accident → INCIDENTS (zone HSE, à compléter). -->
+<div class="modal" id="m-declarer"><div class="sheet" style="max-width:600px">
+  <div class="grab"></div><h2>📝 Déclarer un événement</h2>
+  <p class="small muted">Pour les encadrants : trente secondes, à chaud. Le service HSE prend le relais ensuite.</p>
+  <div id="md-corps"></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" id="md-env" onclick="envoyerDeclaration()">Envoyer</button></div>
 </div></div>
-<div class="modal" id="m-predecl"><div class="sheet" style="max-width:600px">
-  <div class="grab"></div><h2>🚨 Pré-déclaration d’accident</h2>
-  <p class="small muted">Six champs, à chaud. Le service HSE complète la fiche ensuite.</p>
-  <div id="mp-corps"></div>
-  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-danger grow" onclick="envoyerPredeclaration()">🚨 Envoyer au service HSE</button></div>
+<div class="modal" id="m-photos"><div class="sheet" style="max-width:720px">
+  <div class="grab"></div><h2 id="mph-titre">📷 Photo</h2>
+  <p class="small muted" id="mph-sujet"></p>
+  <div id="mph-corps"></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button></div>
 </div></div>
 <div class="modal" id="m-remaction"><div class="sheet" style="max-width:560px">
   <div class="grab"></div><h2>🛠️ Action décidée</h2>

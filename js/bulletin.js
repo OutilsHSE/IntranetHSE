@@ -19,11 +19,12 @@ const BUL_MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','s
 /* Seuils de couleur — PROVISOIRES, calés sur le bulletin de juin 2026 (à confirmer par Justin).
    Chaque entrée : [limite verte incluse, limite orange incluse] ; au-delà = rouge. null = pas de couleur. */
 const BUL_SEUILS={
-  accArret:[0,1], joursArret:[0,30], accSans:null, benins:null, tg:[0.5,1.5], tf:[10,25]
+  accArret:[0,1], joursArret:[0,30], accSans:'zero', benins:'zero', tg:[0.5,1.5], tf:[10,25]
 };
 function bulCouleur(cle,v){
   const s=BUL_SEUILS[cle]; if(!s||v===null||v===undefined||v==='')return '';
   const n=Number(v); if(isNaN(n))return '';
+  if(s==='zero')return n===0?'vert':'';            // modèle de juin : 0 en vert, sinon pas de couleur
   return n<=s[0]?'vert':(n<=s[1]?'orange':'rouge');
 }
 function bulSmiley(pc,obj){ if(pc===null||pc===undefined||isNaN(pc))return ''; return pc>=obj?'🙂':(pc>=obj*0.8?'😐':'🙁'); }
@@ -58,7 +59,68 @@ function bulTend(cur,prev,hausseBonne,unite){
   const bon=hausseBonne?d>0:d<0;
   return '<span class="tend '+(bon?'bon':'mauvais')+'" title="vs période précédente : '+(d>0?'+':'')+d+(unite||'')+'">'+(d>0?'▲':'▼')+' '+(d>0?'+':'')+d+(unite||'')+'</span>';
 }
-function bulImprimer(){window.print()}
+let bulSnap=null;
+/* V3.3.2 — PDF DU BULLETIN : plus une impression de l'écran, mais UNE PAGE A4 dessinée
+   comme le bulletin mensuel de Justin : bandeau (logo, BULLETIN HSE, mois, agence,
+   mascotte) · Faits marquants · deux gros chiffres AT · tableau Reporting N-1 / N
+   (CDES / Intérim, cases rouge / orange / vert) · Vigiminutes vs objectif avec le total
+   « N Vigiminutes et N remontées » · Flashs mensuels · ligne QHP / remontées / arrivants.
+   Le reste de la page est masqué à l'impression (CSS #bul-print). */
+function bulImprimer(){
+  if(!bulSnap){renderBulletin();if(!bulSnap){window.print();return}}
+  const d=bulSnap, titre=(bulPeriode==='annee'?'Année '+d.an:bulLib(bulMois)).toUpperCase()+(agenceChoisie?' — '+d.agLib.toUpperCase():'');
+  const num=(v,dec)=>bulNum(v,dec);
+  const tdCl=(c,v,inter)=>{if(inter&&(c==='tg'||c==='tf'))return ' class="gris"';const k=bulCouleur(c,v);return k?' class="'+k+'"':''};
+  let h='';
+  /* ligne 1-2 : [ MOIS / faits marquants ]  [ AT depuis le 1er janvier / jours depuis dernier AT ] */
+  h+='<div class="bp-g1">'
+    +'<div class="bp-cyan bp-mois">'+esc(titre)+'</div>'
+    +'<div class="bp-cyan bp-k">AT DEPUIS LE 1<sup>er</sup> JANVIER'+(bulPeriode==='annee'?' '+esc(d.an):'')+'</div>'
+    +'<div class="bp-faits"><img src="img/picto_faits.png" alt="" onerror="this.remove()"><div><h2>FAITS MARQUANTS HSE :</h2>'
+    +(d.faits?'<ul>'+String(d.faits).split(/\n+/).filter(Boolean).map(l=>'<li>- '+esc(l.replace(/^[-•·]\s*/,''))+'</li>').join('')+'</ul>':'<p class="bp-vide">—</p>')+'</div></div>'
+    +'<div class="bp-col"><div class="bp-noir">'+(d.cdes.N.dispo?d.cdes.N.accArret:'—')+'</div>'
+    +'<div class="bp-cyan bp-k">Nb de jours depuis dernier AT</div>'
+    +'<div class="bp-noir">'+(d.js===null?'—':d.js.toLocaleString('fr-FR'))+'</div></div>'
+    +'</div>';
+  /* ligne 3 : REPORTING | VIGIMINUTES */
+  h+='<div class="bp-g2"><div class="bp-cadre"><h3>REPORTING</h3><table class="bp-tab"><thead>'
+    +'<tr><th class="vide"></th><th colspan="2" class="an">'+esc(d.anP)+'</th><th colspan="2" class="an">'+esc(d.an)+'</th></tr>'
+    +'<tr><th class="vide"></th><th>CDES</th><th>Intérim</th><th>CDES</th><th>Intérim</th></tr></thead><tbody>';
+  const LIB={accArret:'AT avec Arrêt',joursArret:'Jours d’Arrêt',accSans:'AT sans Arrêt',benins:'AT Bénins',tg:'T° Gravité',tf:'T° Fréquence'};
+  d.L.forEach(([lib,c,dec])=>{
+    const vP=d.cdes.P.dispo?d.cdes.P[c]:null, vN=d.cdes.N.dispo?d.cdes.N[c]:null;
+    const iP=d.intP&&c!=='tg'&&c!=='tf'?d.intP[c]:(d.interimDispo&&c!=='tg'&&c!=='tf'&&d.cdes.P.dispo?0:null);
+    const iN=d.intN&&c!=='tg'&&c!=='tf'?d.intN[c]:(d.interimDispo&&c!=='tg'&&c!=='tf'&&d.cdes.N.dispo?0:null);
+    h+='<tr><th>'+esc(LIB[c]||lib)+'</th><td'+tdCl(c,vP)+'>'+num(vP,dec)+'</td><td'+tdCl(c,iP,true)+'>'+(iP===null?'':num(iP,0))+'</td><td'+tdCl(c,vN)+'>'+num(vN,dec)+'</td><td'+tdCl(c,iN,true)+'>'+(iN===null?'':num(iN,0))+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div class="bp-cadre bp-vigi"><h3>VIGIMINUTES</h3><div class="bp-vtitre">Suivi des VIGIMINUTES<br><span>(Objectif : '+d.objV+' % des Vigi attendues)</span></div>'
+    +bulGraphVigi(d.moisAn,d.objV)
+    +'<div class="bp-total">'+d.vRecu.toLocaleString('fr-FR')+' Vigiminute'+(d.vRecu>1?'s':'')+' et '+d.remAn.toLocaleString('fr-FR')+' Remontée'+(d.remAn>1?'s':'')+'</div></div></div>';
+  /* ligne 4 : FLASHS MENSUELS | mascotte */
+  h+='<div class="bp-g3"><img class="bp-pf" src="img/picto_flashs.png" alt="" onerror="this.remove()">'
+    +'<div class="bp-flash"><h2>FLASHS '+(bulPeriode==='annee'?'DE L’ANNÉE':'MENSUELS')+' :</h2>'
+    +(d.flA.length?'<ul>'+d.flA.map(f=>'<li>- Flash <b>'+esc(bulNature(f.nature).replace(/^Flash\s*/i,'')||'Prévention')+'</b> : '+esc(f.intitule||'—')+'</li>').join('')+'</ul>':'<p class="bp-vide">Aucun flash ce mois-ci.</p>')
+    +'<div class="bp-minis">'
+    +'<span><b>QHP</b> '+(d.qPc!==null&&d.qPc!==undefined?d.qPc+' % '+bulSmiley(d.qPc,d.objQ):'—')+'</span>'
+    +'<span><b>Remontées traitées</b> '+(d.R&&d.R.total?d.R.traitees+' / '+d.R.total+' '+bulSmiley(d.R.pc,d.objV):'—')+'</span>'
+    +'<span><b>Arrivants</b> '+(d.tousA?d.compA+' / '+d.tousA+' parcours complets':'—')+'</span>'
+    +(d.conds.length?'<span><b>🏆 QHP</b> '+d.conds.map((c,i)=>['🥇','🥈','🥉'][i]+' '+esc(c.nom)).join(' · ')+'</span>':'')
+    +'</div></div>'
+    +'<img class="bp-masc" src="img/mascotte.png" alt="" onerror="this.remove()"></div>';
+  h+='<div class="bp-pied">Service HSE — CDES · généré le '+esc(frDate(new Date().toISOString().slice(0,10)))+' depuis l’intranet HSE</div>';
+  let box=document.getElementById('bul-print');
+  if(!box){box=document.createElement('div');box.id='bul-print';document.body.appendChild(box)}
+  box.innerHTML=h; document.body.classList.add('impression-bulletin');
+  const fin=()=>{document.body.classList.remove('impression-bulletin')};
+  window.addEventListener('afterprint',fin,{once:true});
+  setTimeout(()=>{window.print();setTimeout(fin,1500)},150);
+}
+function bulBilanCle(an,ag){return 'bilan.'+an+(ag?'.'+ag:'')}
+function bulBilanSaisi(an){
+  const brut=kpiVal(bulBilanCle(an,agenceChoisie)); if(!brut)return null;
+  try{const o=typeof brut==='string'?JSON.parse(brut):brut;return (o&&typeof o==='object')?o:null}catch(e){return null}
+}
 function renderBulletin(){
   const box=document.getElementById('ess-box');if(!box)return;
   const rep=repData()||{}, rows=rep.mois||[], q=qhpData();
@@ -70,7 +132,18 @@ function renderBulletin(){
        tg:heuresN?bulSomme(rN,'joursArret')*1000/heuresN:null, tf:heuresN?bulSomme(rN,'accArret')*1e6/heuresN:null, dispo:rN.length>0},
     P:{accArret:bulSomme(rP,'accArret'),joursArret:bulSomme(rP,'joursArret'),accSans:bulSomme(rP,'accSans'),benins:bulSomme(rP,'benins'),
        tg:heuresP?bulSomme(rP,'joursArret')*1000/heuresP:null, tf:heuresP?bulSomme(rP,'accArret')*1e6/heuresP:null, dispo:rP.length>0}};
-  const ipa=rep.interimParAn||{}, intN=ipa[an]||null, intP=ipa[anP]||null, interimDispo=!!rep.interimParAn;
+  const ipa=rep.interimParAn||{}, intN=ipa[an]||null; let intP=ipa[anP]||null, interimDispo=!!rep.interimParAn;
+  /* V3.3.2 : BILAN SAISI pour l'année précédente (zone HSE ▸ « Année précédente »).
+     Quand le classeur n'a pas les mois de N-1 (reporting démarré en 2026), les
+     totaux tapés à la main prennent la place de la colonne N-1 ; ils priment sur
+     des mois partiels. KPI bilan.AAAA (global) ou bilan.AAAA.IDF (par agence). */
+  const bilanP=bulBilanSaisi(anP);
+  if(bilanP){
+    const c=bilanP.cdes||{}, hP=Number(c.heures)||0;
+    cdes.P={accArret:Number(c.accArret)||0,joursArret:Number(c.joursArret)||0,accSans:Number(c.accSans)||0,benins:Number(c.benins)||0,
+      tg:hP?(Number(c.joursArret)||0)*1000/hP:null, tf:hP?(Number(c.accArret)||0)*1e6/hP:null, dispo:true, saisi:true};
+    if(bilanP.interim){const i=bilanP.interim;intP={accArret:Number(i.accArret)||0,joursArret:Number(i.joursArret)||0,accSans:Number(i.accSans)||0,benins:Number(i.benins)||0,trajet:Number(i.trajet)||0};interimDispo=true}
+  }
   const js=joursSans(), da=dernierArret(), rec=bulRecordJours(rep.atArretDates);
   const agLib=agenceChoisie?((agencesDispo().find(x=>x.code===agenceChoisie)||{}).lib||agenceChoisie):'CDES — toutes agences';
   let faits=kpiVal('faits.'+bulMois);
@@ -86,23 +159,26 @@ function renderBulletin(){
     +'<span class="bul-switch seg no-print"><button data-v="bulletin" onclick="bulSetVue(\'bulletin\')">📰 Bulletin</button><button data-v="dash" onclick="bulSetVue(\'dash\')">📊 Tableau de bord</button></span>'
     +'<button class="bul-nav no-print" style="width:auto;padding:0 10px;font-size:14px" onclick="bulImprimer()" title="Imprimer / enregistrer en PDF ce bulletin">🖨 PDF</button>'
     +'<div class="bul-ag'+(agenceChoisie?' ag-'+agenceChoisie:'')+'">'+esc(agLib)+'</div></div></div>';
-  /* V3.3 : les deux boutons du terrain, visibles par tous */
-  h+='<div class="bul-actions no-print"><button class="btn-sig" onclick="ouvrirSignaler()"><b>⚡ Signaler</b><span>situation dangereuse, presqu’accident, bonne pratique</span></button>'
-    +'<button class="btn-pre" onclick="ouvrirPredeclaration()"><b>🚨 Pré-déclarer un accident</b><span>six champs, le service HSE complète</span></button></div>';
+  /* V3.3.2 : UN seul bouton de déclaration, discret, dans le bandeau d'actions (le type choisi dans la fenêtre dirige vers les remontées ou vers les accidents) */
+  h+='<div class="bul-decl no-print"><button class="btn btn-primary" onclick="ouvrirDeclarer()">📝 Déclarer un événement</button><span class="muted">situation dangereuse, presqu’accident, bonne pratique, point d’amélioration… ou accident</span></div>';
 
-  /* ---- faits marquants + AT ---- */
-  h+='<div class="bul-card bul-faits">'+bulPicto('picto_faits','📣')+'<div class="bul-faits-corps"><h3>Faits marquants HSE</h3>'
-    +(faits?'<ul>'+String(faits).split(/\n+/).filter(Boolean).map(l=>'<li>'+esc(l.replace(/^[-•·]\s*/,''))+'</li>').join('')+'</ul>'
-           :'<p class="muted">Rien de saisi pour ce mois.'+(estEditeur()?' Clique sur ✏️ pour écrire 1 à 3 lignes (journée sécurité, certification, visite…).':'')+'</p>')
-    +(estEditeur()?'<button class="btn btn-ghost btn-sm no-print bul-edit" onclick="bulEditerFaits()">✏️ Modifier</button>':'')+'</div></div>';
-  h+='<div class="bul-card bul-at"><div class="bul-at-k">AT depuis le 1<sup>er</sup> janvier '+esc(an)+'</div>'
-    +'<div class="bul-at-v '+(cdes.N.accArret===0?'vert':(cdes.N.accArret===1?'orange':'rouge'))+'">'+(cdes.N.dispo?cdes.N.accArret:'—')
-    +(cdes.P.dispo?bulTend(cdes.N.accArret,bulSomme(bulAnnee(rows,anP,anP+bulMois.slice(4)),'accArret'),false,''):'')+'</div>'
-    +'<div class="bul-at-s">avec arrêt'+(cdes.N.dispo?' · '+cdes.N.accSans+' sans arrêt · '+cdes.N.benins+' bénin'+(cdes.N.benins>1?'s':''):'')+'</div>'
-    +'<div class="bul-at-k">Nb de jours depuis le dernier AT</div>'
-    +'<div class="bul-at-v '+(js===null?'':(js>=100?'vert':(js>=30?'orange':'rouge')))+'">'+(js===null?'—':js.toLocaleString('fr-FR'))+'</div>'
-    +'<div class="bul-at-s">'+(da?'dernier AT avec arrêt le '+esc(frDate(String(da).slice(0,10))):'aucun AT avec arrêt connu')
-    +(rec!==null?' · record <b>'+rec.toLocaleString('fr-FR')+' j</b>':'')+'</div></div>';
+  /* ---- faits marquants : masqués pour les lecteurs tant que rien n'est saisi ; la saisie se fait dans la zone HSE ---- */
+  if(faits||estEditeur()){
+    h+='<div class="bul-card bul-faits">'+bulPicto('picto_faits','📣')+'<div class="bul-faits-corps"><h3>Faits marquants HSE</h3>'
+      +(faits?'<ul>'+String(faits).split(/\n+/).filter(Boolean).map(l=>'<li>'+esc(l.replace(/^[-•·]\s*/,''))+'</li>').join('')+'</ul>'
+             :'<p class="muted">Rien de saisi pour '+esc(bulLib(bulMois).toLowerCase())+' — à écrire dans la zone HSE (carte « Faits marquants »). Les lecteurs ne voient pas cette carte tant qu’elle est vide.</p>')
+      +'</div></div>';
+  }
+  /* ---- AT : carte claire, deux chiffres côte à côte ---- */
+  const atCls=cdes.N.accArret===0?'vert':(cdes.N.accArret===1?'orange':'rouge'), jsCls=js===null?'':(js>=100?'vert':(js>=30?'orange':'rouge'));
+  h+='<div class="bul-card bul-at'+(faits||estEditeur()?'':' large')+'">'
+    +'<div class="bul-at-b"><div class="bul-at-k">AT avec arrêt depuis le 1<sup>er</sup> janvier '+esc(an)+'</div>'
+    +'<div class="bul-at-v '+atCls+'">'+(cdes.N.dispo?cdes.N.accArret:'—')+(cdes.P.dispo?bulTend(cdes.N.accArret,bulSomme(bulAnnee(rows,anP,anP+bulMois.slice(4)),'accArret'),false,''):'')+'</div>'
+    +'<div class="bul-at-s">'+(cdes.N.dispo?cdes.N.accSans+' sans arrêt · '+cdes.N.benins+' bénin'+(cdes.N.benins>1?'s':''):'pas de données')+'</div></div>'
+    +'<div class="bul-at-b"><div class="bul-at-k">Jours depuis le dernier AT avec arrêt</div>'
+    +'<div class="bul-at-v '+jsCls+'">'+(js===null?'—':js.toLocaleString('fr-FR'))+'</div>'
+    +'<div class="bul-at-s">'+(da?'dernier le '+esc(frDate(String(da).slice(0,10))):'aucun AT avec arrêt connu')+(rec!==null?' · record <b>'+rec.toLocaleString('fr-FR')+' j</b>':'')+'</div></div>'
+    +'</div>';
 
   /* ---- tableau reporting N-1 / N ---- */
   const L=[['AT avec arrêt','accArret',0],['Jours d’arrêt','joursArret',0],['AT sans arrêt','accSans',0],['AT bénins','benins',0],['Taux de gravité','tg',2],['Taux de fréquence','tf',2]];
@@ -117,7 +193,7 @@ function renderBulletin(){
       +'<td class="'+bulCouleur(c,vP)+'">'+bulNum(vP,dec)+'</td><td class="int '+bulCouleur(c,iP)+'">'+(iP===null?'—':bulNum(iP,0))+'</td>'
       +'<td class="'+bulCouleur(c,vN)+'">'+bulNum(vN,dec)+'</td><td class="int '+bulCouleur(c,iN)+'">'+(iN===null?'—':bulNum(iN,0))+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="hint">'+esc(an)+' : cumul au '+esc(bulLib(bulMois).toLowerCase())+' · '+esc(anP)+' : année entière. '
+  h+='</tbody></table></div><p class="hint">'+esc(an)+' : cumul au '+esc(bulLib(bulMois).toLowerCase())+' · '+esc(anP)+' : année entière'+(cdes.P.saisi?' (bilan saisi par le service HSE)':'')+'. '
     +'Tg = jours d’arrêt × 1 000 / heures · Tf = AT avec arrêt × 10⁶ / heures.'
     +(interimDispo?' Intérim : AT dont la catégorie du collaborateur est « intérimaire ».':' Colonne Intérim : disponible après la nouvelle version du script.')+'</p></div>';
 
@@ -156,7 +232,7 @@ function renderBulletin(){
       :'<div class="bul-big muted">—</div><div class="bul-sub">aucune remontée enregistrée</div>')+'</div>';
   const tousA=(typeof arrivants==='function'?arrivants():[]).filter(a=>!agenceChoisie||(a.agence||'')===agenceChoisie), compA=tousA.filter(a=>typeof arrivComplet==='function'&&arrivComplet(a)).length;
   const pcA=tousA.length?Math.round(compA/tousA.length*100):null;
-  h+='<div class="bul-card bul-mini bul-link" onclick="go(\'v-arriv\')" title="Ouvrir le suivi des nouveaux arrivants"><div class="bul-mini-ico">🎒</div><h3>Nouveaux arrivants</h3>'
+  h+='<div class="bul-card bul-mini bul-link" onclick="go(\'v-arriv\')" title="Ouvrir le suivi des nouveaux arrivants"><div class="bul-mini-ico">👷</div><h3>Nouveaux arrivants</h3>'
     +(tousA.length?'<div class="bul-big">'+compA+'<small>/'+tousA.length+'</small><span class="bul-sm">'+bulSmiley(pcA,100)+'</span></div><div class="bul-sub">parcours complets · '+(tousA.length-compA)+' à compléter</div>'
       :'<div class="bul-big muted">—</div><div class="bul-sub">aucun arrivant suivi</div>')+'</div>';
 
@@ -170,7 +246,7 @@ function renderBulletin(){
     const sansRep=remAg.filter(r=>!String(r.action||'').trim()&&!(r.commentaires||[]).length);
     h+='<div class="bul-card bul-agence"><h3>📌 À faire dans l’agence — '+esc(bulLib(bulMois).toLowerCase())+'</h3><div class="bul-ag3">'
       +'<div><b>🗣️ QHP du mois</b>'+(idxQ<0||!condsAg.length?'<p class="muted">pas de conducteur connu pour cette agence</p>':(manquants.length?'<p>'+manquants.length+' conducteur'+(manquants.length>1?'s':'')+' sans QHP : <span class="bul-noms">'+manquants.map(c=>esc(c.nom)).join(', ')+'</span></p>':'<p class="ok">✔ tous les conducteurs ont animé leur QHP</p>'))+'</div>'
-      +'<div onclick="go(\'v-arriv\')" class="bul-link"><b>🎒 Arrivants à compléter</b>'+(aComp.length?'<p>'+aComp.length+' : <span class="bul-noms">'+aComp.slice(0,6).map(a=>esc(a.nom)+' <i>'+JALONS.filter(j=>jalonEtat(a,j.c)!=='todo').length+'/'+JALONS.length+'</i>').join(', ')+(aComp.length>6?'…':'')+'</span></p>':'<p class="ok">✔ tous les parcours sont complets</p>')+'</div>'
+      +'<div onclick="go(\'v-arriv\')" class="bul-link"><b>👷 Arrivants à compléter</b>'+(aComp.length?'<p>'+aComp.length+' : <span class="bul-noms">'+aComp.slice(0,6).map(a=>esc(a.nom)+' <i>'+JALONS.filter(j=>jalonEtat(a,j.c)!=='todo').length+'/'+JALONS.length+'</i>').join(', ')+(aComp.length>6?'…':'')+'</span></p>':'<p class="ok">✔ tous les parcours sont complets</p>')+'</div>'
       +'<div onclick="go(\'v-rem\')" class="bul-link"><b>📬 Remontées ouvertes</b>'+(remAg.length?'<p>'+remAg.length+' ouverte'+(remAg.length>1?'s':'')+(sansRep.length?', <b>'+sansRep.length+' sans réponse</b>':'')+' : <span class="bul-noms">'+remAg.slice(0,3).map(r=>esc(String(r.sujet||'').slice(0,50))).join(' · ')+'</span></p>':'<p class="ok">✔ aucune remontée en attente</p>')+'</div>'
       +'</div></div>';
   }
@@ -181,8 +257,10 @@ function renderBulletin(){
     const score=c=>bulPeriode==='annee'?(c.mois||[]).reduce((s,n,i)=>s+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an)?n:0),0):(idxQ>=0&&c.mois?c.mois[idxQ]:0);
     conds=conds.map(c=>({nom:c.nom,agence:c.agence,n:score(c),part:c.participants||0})).filter(c=>c.n>0).sort((a,b)=>b.n-a.n||b.part-a.part).slice(0,5);
     if(conds.length){const med=['🥇','🥈','🥉','🏅','🏅'];
+      /* égalité = même médaille (deux premiers ex æquo → deux 🥇, le suivant 🥉) */
+      let rang=0;conds.forEach((c,i)=>{if(i>0&&c.n===conds[i-1].n)c.r=conds[i-1].r;else{rang=i;c.r=rang}});
       h+='<div class="bul-card bul-podium"><h3>🏆 Conducteurs de travaux — QHP '+esc(bulPeriode==='annee'?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+'</h3><ol class="bul-pod">'
-        +conds.map((c,i)=>'<li><span class="med">'+med[i]+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie?'':' <span class="apill ag-'+esc(c.agence||'')+'">'+esc(c.agence||'')+'</span>')+'</span><b>'+c.n+' QHP</b></li>').join('')
+        +conds.map((c,i)=>'<li><span class="med">'+med[c.r]+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie?'':' <span class="apill ag-'+esc(c.agence||'')+'">'+esc(c.agence||'')+'</span>')+'</span><b>'+c.n+' QHP</b></li>').join('')
         +'</ol><p class="hint" style="margin:6px 0 0">Bravo à eux — et merci à tous ceux qui animent les quarts d’heure prévention.</p></div>';
     }
   }
@@ -197,6 +275,11 @@ function renderBulletin(){
   h+='</div>';
   box.innerHTML=h;
   bulAppliquerVue();
+  /* V3.3.2 : tout ce qu'il faut pour le PDF « bulletin » (mise en page dédiée, voir bulImprimer) */
+  bulSnap={an,anP,cdes,intN,intP,interimDispo,js,da,rec,faits,agLib,L,moisAn,objV,vRecu,remAn,mCur,qPc,qVus,qEff,qNb,objQ,R,tousA:tousA.length,compA,flA,flM:flM.length,
+    conds:(function(){try{const idxQ=q&&Array.isArray(q.mois)?q.mois.findIndex(m=>m.k===bulMois):-1;let c=(q&&Array.isArray(q.conducteurs)?q.conducteurs:[]).filter(c=>!agenceChoisie||(c.agence||'')===agenceChoisie);
+      const sc=c=>bulPeriode==='annee'?(c.mois||[]).reduce((s,n,i)=>s+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an)?n:0),0):(idxQ>=0&&c.mois?c.mois[idxQ]:0);
+      return c.map(c=>({nom:c.nom,n:sc(c)})).filter(c=>c.n>0).sort((a,b)=>b.n-a.n).slice(0,3)}catch(e){return []}})()};
 }
 /* Accueil : « Bulletin » (la page simple, pour tout le monde) ou « Tableau de bord »
    (toutes les familles d'indicateurs, courbes, tableaux QHP). Mémorisé par appareil. */
@@ -226,12 +309,13 @@ function bulGraphVigi(moisAn,obj){
   return s+'</svg>';
 }
 /* faits marquants : texte libre, 1 ligne = 1 point, clé KPI « faits.AAAA-MM », éditeur seulement */
-function bulEditerFaits(){
+function bulEditerFaits(mois){
   if(!estEditeur()){toast('Réservé au service HSE',true);return}
-  const cle='faits.'+bulMois, act=String(kpiVal(cle)||'');
-  const t=prompt('Faits marquants HSE — '+bulLib(bulMois)+'\nUne ligne par point (3 maximum conseillé) :',act);
+  mois=mois||bulMois;
+  const cle='faits.'+mois, act=String(kpiVal(cle)||'');
+  const t=prompt('Faits marquants HSE — '+bulLib(mois)+'\nUne ligne par point (3 maximum conseillé) :',act);
   if(t===null)return;
-  state.kpi[cle]=t.trim();state.kpiMaj[cle]=nowISO();save();renderBulletin();
+  state.kpi[cle]=t.trim();state.kpiMaj[cle]=nowISO();save();renderBulletin();if(typeof renderTodo==='function')renderTodo();
   if(typeof syncAuto==='function')syncAuto();
   toast(t.trim()?'Faits marquants enregistrés ✓':'Faits marquants effacés');
 }

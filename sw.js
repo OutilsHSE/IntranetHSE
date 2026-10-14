@@ -4,7 +4,7 @@
    (elles sont dans le stockage local de la page). Les appels au serveur Apps
    Script ne sont JAMAIS mis en cache. Mise à jour : réseau d'abord, cache en
    secours (une nouvelle version du dépôt est vue dès la connexion suivante). */
-const CACHE='ihse-v3-3-1';
+const CACHE='ihse-v3-3-2';
 const COQUILLE=['./','index.html','hse.html','config.js','css/intranet.css','css/hse.css','js/configuration.js','js/intranet.js','js/bulletin.js','js/terrain.js','js/qhp.js','js/hse.js',
   'img/logo_cdes.png','img/bonhomme.png','img/mase_logo.png','img/mase_certificat.jpg','img/mascotte.png','img/picto_faits.png','img/picto_flashs.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.allSettled(COQUILLE.map(u=>c.add(u)))).then(()=>self.skipWaiting()))});

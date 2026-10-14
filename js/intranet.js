@@ -1,4 +1,4 @@
-const APP_VERSION='V3.3.1';   // 13/10/2026 — mascotte dans le bandeau du haut, pictos de Justin ; = V3.3 complète
+const APP_VERSION='V3.3.2';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -162,7 +162,7 @@ const DEMO_REP={calculeLe:null,dernierArret:'2026-03-12',mois:[
   parMois:[{k:'2026-01',n:16},{k:'2026-02',n:6},{k:'2026-03',n:8},{k:'2026-04',n:21},{k:'2026-05',n:33},{k:'2026-06',n:34}]},
  zones:{parZone:{main:2,cheville:2,jambe:1,dos:1},blessants:6,total:7,analyses:{total:7,faites:5,pc:71},
   hipo:2,categories:{interim:1,soustraitant:1,externes:2},
-  rqs:[{d:'RQS N°3 : Port des EPI',n:3},{d:'RQS N°1',n:2},{d:'RQS N°7',n:1}],actions:{total:5,faites:2,retard:1,prochaines:[{t:'Remplacer les extincteurs des 2 pelles',e:'2026-07-31',q:'M. BOMBLE',tard:true},{t:'Ligne de jet sur les bouées',e:'2026-09-15',q:'A. NONNON',tard:false},{t:'Formaliser la formation au poste faucardage',e:'2026-09-30',q:'J. HERVELIN',tard:false}]},typologies:[
+  rqs:[{d:'RQS N°3 : Port des EPI',n:3},{d:'RQS N°1',n:2},{d:'RQS N°7',n:1}],actions:{total:5,faites:2,retard:1,prochaines:[{t:'Remplacer les extincteurs des 2 pelles',e:'2026-07-31',q:'Chef de chantier',tard:true},{t:'Ligne de jet sur les bouées',e:'2026-09-15',q:'Conducteur de travaux',tard:false},{t:'Formaliser la formation au poste faucardage',e:'2026-09-30',q:'Service HSE',tard:false}]},typologies:[
   {d:'Blessure par un outil à main',n:1},{d:'Choc / Heurt avec un objet fixe',n:1},{d:'Accident de la route en mission',n:1},
   {d:'Chute de plain-pied',n:1},{d:'Blessé suite à un effondrement / chute d’objet',n:1},{d:'Chute de hauteur',n:1}]},
  postes:[{k:'2026-01',poste:'Faucardage',n:2},{k:'2026-02',poste:'Conduite d’engin amphibie',n:1},
@@ -253,6 +253,7 @@ let agenceChoisie='';
 
 function load(){
   try{const r=localStorage.getItem(LS);if(r){const s=JSON.parse(r);if(s&&typeof s==='object')state=Object.assign(state,s)}}catch(e){}
+  try{const c=JSON.parse(localStorage.getItem('ihse_cache_v1')||'null');if(c){if(c.qhp&&Array.isArray(c.qhp.mois))qhpAuto=c.qhp;if(c.obj)objAuto=c.obj;if(c.rep&&Array.isArray(c.rep.mois))repAuto=c.rep}}catch(e){}   // V3.3.2
   if(!Array.isArray(state.outils))state.outils=[];
   if(!state.kpi)state.kpi={};if(!state.kpiMaj)state.kpiMaj={};if(!state.tombOutils)state.tombOutils={};
   if(!Array.isArray(state.modeop))state.modeop=[];if(!state.tombModeop)state.tombModeop={};
@@ -1418,7 +1419,7 @@ function enteteMois(mois){
    La liste vit ICI, dans la page : en ajouter une ne demande aucun redéploiement
    du script — le serveur range ce qu’on lui donne, sans le comprendre. */
 const JALONS=[
- {c:'accueilSSE',   ico:'🎒', lib:'Accueil SSE',              court:'Accueil SSE',       auto:true},
+ {c:'accueilSSE',   ico:'👷', lib:'Accueil SSE',              court:'Accueil SSE',       auto:true},
  {c:'competence',   ico:'🎓', lib:'Fiche de formation au poste', court:'Formation au poste', auto:true},
  {c:'autorisation', ico:'🚜', lib:'Autorisation de conduite',  court:'Autorisation',      auto:true},
  {c:'pdp',          ico:'📄', lib:'PDP du 1er chantier signé', court:'PDP 1er chantier',  auto:false}
@@ -1547,7 +1548,7 @@ function saveArrivant(){
 function raccourciArrivants(){
   const tous=arrivants(), inc=tous.filter(a=>!arrivComplet(a));
   let h='<div class="row no-print" style="margin-top:12px;align-items:center;gap:8px">'
-    +'<button class="btn btn-primary btn-sm" onclick="go(\'v-arriv\')">🎒 Ouvrir le suivi des nouveaux arrivants</button>'
+    +'<button class="btn btn-primary btn-sm" onclick="go(\'v-arriv\')">👷 Ouvrir le suivi des nouveaux arrivants</button>'
     +'<span class="hint" style="margin:0">'+(tous.length
        ? tous.length+' fiche(s) suivie(s)'+(inc.length?' · <b>'+inc.length+' parcours à compléter</b>':' · tous les parcours sont complets ✅')
        : 'Aucune fiche pour l’instant — les accueils sécurité en créent automatiquement.')+'</span></div>';
@@ -1582,18 +1583,47 @@ function arrivAncien(a){
   const lim=new Date();lim.setMonth(lim.getMonth()-ARRIV_MOIS_SORTIE);
   return d<lim.toISOString().slice(0,10);
 }
-/* Clic sur une case : à faire → fait → NA → à faire. Écran mis à jour tout de
-   suite ; la réponse du serveur écrase ensuite l'état local. */
-function cyclerJalon(id,champ){
+/* V3.3.2 — Clic sur une case : un PETIT MENU explicite (retour de Justin : le
+   cycle de 3 clics n'était pas devinable). Choix : ✅ fait aujourd'hui ·
+   📅 fait à une autre date · — non concerné · ☐ à faire. L'écran est mis à
+   jour tout de suite ; la case montre un petit sablier tant que le serveur
+   n'a pas répondu, puis la réponse écrase l'état local. */
+const jalonsEnvoi={};                          // id|champ → true pendant l'envoi
+function jalonMenu(ev,id,champ){
+  if(ev)ev.stopPropagation();
+  fermerJalonMenu();
   const a=(state.arrivants||[]).find(x=>x.id===id); if(!a)return;
   const j=JALONS.find(x=>x.c===champ); if(!j)return;
-  const et=jalonEtat(a,champ);
-  const val=et==='todo'?new Date().toISOString().slice(0,10):(et==='fait'?'NA':'');
-  const etapes=Object.assign({},arrivEtapes(a)); delete etapes[champ];
-  a[champ]=val; a.etapes=etapes; renderArrivants();
-  const msg=(val==='NA'?'— Non concerné : ':(val?'✓ ':'↩ À faire : '))+j.lib+' — '+a.nom;
-  envoyerArrivants([{id:id,[champ]:val,etapes:etapes}],msg);
+  const et=jalonEtat(a,champ), v=String(a[champ]||'').slice(0,10);
+  const auj=new Date().toISOString().slice(0,10);
+  const m=document.createElement('div'); m.className='jmenu'; m.id='jmenu';
+  m.innerHTML='<div class="jm-t">'+esc(j.lib)+'<span>'+esc(a.nom)+'</span></div>'
+    +(et!=='fait'||v!==auj?'<button class="jm-b" onclick="poserJalon(\''+esc(id)+'\',\''+j.c+'\',\''+auj+'\')">✅ Fait aujourd’hui</button>':'')
+    +'<label class="jm-b jm-date">📅 Fait le <input type="date" value="'+(et==='fait'?v:'')+'" max="'+auj+'" onchange="poserJalon(\''+esc(id)+'\',\''+j.c+'\',this.value)" onclick="event.stopPropagation()"></label>'
+    +(et!=='na'?'<button class="jm-b" onclick="poserJalon(\''+esc(id)+'\',\''+j.c+'\',\'NA\')">— Non concerné</button>':'')
+    +(et!=='todo'?'<button class="jm-b jm-off" onclick="poserJalon(\''+esc(id)+'\',\''+j.c+'\',\'\')">☐ Remettre à faire</button>':'')
+    +'<button class="jm-b jm-x" onclick="fermerJalonMenu()">Annuler</button>';
+  document.body.appendChild(m);
+  const b=ev&&ev.currentTarget?ev.currentTarget.getBoundingClientRect():{left:40,bottom:120,top:100};
+  const w=240, x=Math.max(8,Math.min(window.innerWidth-w-8,b.left)), y=(b.bottom+8+230>window.innerHeight)?Math.max(8,b.top-8-230):b.bottom+6;
+  m.style.left=x+'px'; m.style.top=(y+window.scrollY)+'px';
+  setTimeout(()=>document.addEventListener('click',fermerJalonMenu,{once:true}),0);
 }
+function fermerJalonMenu(){const m=document.getElementById('jmenu');if(m)m.remove()}
+async function poserJalon(id,champ,val){
+  fermerJalonMenu();
+  const a=(state.arrivants||[]).find(x=>x.id===id); if(!a)return;
+  const j=JALONS.find(x=>x.c===champ); if(!j)return;
+  if(val&&val!=='NA'&&!/^\d{4}-\d{2}-\d{2}$/.test(val))return;
+  const etapes=Object.assign({},arrivEtapes(a)); delete etapes[champ];
+  a[champ]=val; a.etapes=etapes;
+  jalonsEnvoi[id+'|'+champ]=true; renderArrivants();
+  const msg=(val==='NA'?'— Non concerné : ':(val?'✓ '+frDate(val)+' : ':'↩ À faire : '))+j.lib+' — '+a.nom;
+  try{await envoyerArrivants([{id:id,[champ]:val,etapes:etapes}],msg)}
+  finally{delete jalonsEnvoi[id+'|'+champ]; renderArrivants()}
+}
+/* compatibilité : l'ancien nom reste utilisable (tests, raccourcis) — il ouvre le menu */
+function cyclerJalon(id,champ){jalonMenu(null,id,champ)}
 async function archiverArrivants(){
   if(!estEditeur()){toast('Seul un appareil éditeur peut archiver',true);return}
   const anciens=arrivants().filter(arrivAncien);
@@ -1617,8 +1647,8 @@ function renderArrivants(){
   const tous=arrivants(), complets=tous.filter(arrivComplet).length, anciens=tous.filter(arrivAncien).length;
   const visibles=arrivVisibles().filter(a=>arrivFiltre.anciens||!arrivAncien(a));
   let h='<div class="arr-head">'
-    +'<div><h2>🎒 Nouveaux arrivants</h2>'
-    +'<p class="small muted" style="margin:2px 0 0">Un clic sur une case : <b>à faire</b> → <b>✅ fait</b> (date du jour) → <b>NA</b> (non concerné) → à faire. '
+    +'<div><h2>👷 Nouveaux arrivants</h2>'
+    +'<p class="small muted" style="margin:2px 0 0">Clique sur une case pour choisir : <b>✅ fait aujourd’hui</b>, <b>📅 fait à une autre date</b>, <b>— non concerné</b> ou <b>☐ à faire</b>. '
     +'🤖 = coché tout seul par l’outil correspondant ; le PDP se coche à la main. Rien ne s’efface ici, tout est tracé.</p></div>'
     +'<div class="arr-kpis">'
     +'<span class="ak"><b>'+tous.length+'</b> suivis</span>'
@@ -1655,9 +1685,10 @@ function renderArrivants(){
         +'<td class="c-date">'+(a.arrivee?esc(frDate(a.arrivee)):'<span class="muted">—</span>')+'</td>';
       JALONS.forEach(j=>{
         const et=jalonEtat(a,j.c), v=String(a[j.c]||'');
+        const envoi=!!jalonsEnvoi[a.id+'|'+j.c];
         const lib=et==='fait'?'✓ '+frDate(v.slice(0,10)):(et==='na'?'NA':'');
-        const tt=et==='fait'?j.lib+' : fait le '+frDate(v.slice(0,10))+' — clic : non concerné':(et==='na'?j.lib+' : non concerné — clic : remettre à faire':j.lib+' : à faire — clic : fait aujourd’hui');
-        h+='<td class="c-j"><button class="jc '+et+'" onclick="cyclerJalon(\''+esc(a.id)+'\',\''+j.c+'\')" title="'+esc(tt)+'">'+(lib||'<i></i>')+'</button></td>';
+        const tt=j.lib+' : '+(et==='fait'?'fait le '+frDate(v.slice(0,10)):(et==='na'?'non concerné':'à faire'))+' — clic : changer';
+        h+='<td class="c-j"><button class="jc '+et+(envoi?' envoi':'')+'" onclick="jalonMenu(event,\''+esc(a.id)+'\',\''+j.c+'\')" title="'+esc(tt)+'">'+(lib||'<i></i>')+(envoi?'<em class="jsab" title="Enregistrement en cours…">⏳</em>':'')+'</button></td>';
       });
       h+='<td class="c-etat">'+(complet?'<span class="aok">✔ complet</span>':'<span class="aprog2"><b>'+faits+'</b>/'+JALONS.length+'<i style="width:'+Math.round(100*faits/JALONS.length)+'%"></i></span>')+'</td>'
         +'<td class="c-act no-print"><button class="btn btn-ghost btn-sm" onclick="openArrivant(\''+esc(a.id)+'\')" title="Détails de la fiche (tuteur, chantier, notes)">✏️</button>'
@@ -1931,6 +1962,10 @@ function appliquer(d){
   if(d.qhp&&Array.isArray(d.qhp.mois))qhpAuto=d.qhp;
   if(d.obj&&Array.isArray(d.obj.objectifs))objAuto=d.obj;
   if(d.rep&&Array.isArray(d.rep.mois))repAuto=d.rep;
+  /* V3.3.2 : les indicateurs sont gardés sur l'appareil → à l'ouverture suivante, le
+     bulletin s'affiche TOUT DE SUITE avec les derniers chiffres connus, puis se met à
+     jour quand le serveur répond (plus d'écran vide pendant 5 à 10 s). */
+  try{localStorage.setItem('ihse_cache_v1',JSON.stringify({qhp:qhpAuto,obj:objAuto,rep:repAuto,quand:nowISO()}))}catch(e){}
   if(Array.isArray(d.arrivants))state.arrivants=d.arrivants;
   if(Array.isArray(d.remontees))state.remontees=d.remontees;        // V3.3
   if(Array.isArray(d.qhpThemes))state.qhpThemes=d.qhpThemes;        // V3.3 p3
@@ -2048,6 +2083,7 @@ function importJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReade
  * prouvé qu'il connaissait le mot de passe ; un appareil neuf, lui, reste dehors. */
 let synchrosLancees=false;
 function ouvrirAppli(){
+  if(CONFIG.CONFIG_INVALIDE){try{const b=document.getElementById('dash-banner');if(b)b.innerHTML='<div class="banner" style="margin-bottom:10px">⚠️ <b>config.js n’a pas d’adresse de serveur valide</b> (il contient encore le modèle « COLLE_ICI_L_ADRESSE_EXEC »). Sur GitHub, ouvre <code>config.js</code> et remplace-le par l’adresse <code>…/exec</code> du script « Intranet HSE CDES ». En attendant, la page est en démonstration.</div>'}catch(e){}}
   document.body.classList.remove('verrouille');
   const v=document.getElementById('verrou'); if(v)v.style.display='none';
   renderTiles();renderDash();
@@ -2061,7 +2097,7 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};saveConfLS()}
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}saveConfLS()}
 function verrouExpire(){
   const n=Number(conf.expireJours); if(!(n>0))return false;
   const t=Date.parse(conf.deverrouilleLe||''); if(!isFinite(t))return true;   // déverrouillé avant la V28.3 : on redemande une fois
