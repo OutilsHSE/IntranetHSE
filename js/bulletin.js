@@ -160,7 +160,7 @@ function renderBulletin(){
     +'<button class="bul-nav no-print" style="width:auto;padding:0 10px;font-size:14px" onclick="bulImprimer()" title="Imprimer / enregistrer en PDF ce bulletin">🖨 PDF</button>'
     +'<div class="bul-ag'+(agenceChoisie?' ag-'+agenceChoisie:'')+'">'+esc(agLib)+'</div></div></div>';
   /* V3.3.2 : UN seul bouton de déclaration, discret, dans le bandeau d'actions (le type choisi dans la fenêtre dirige vers les remontées ou vers les accidents) */
-  h+='<div class="bul-decl no-print"><button class="btn btn-primary" onclick="ouvrirDeclarer()">📝 Déclarer un événement</button><span class="muted">situation dangereuse, presqu’accident, bonne pratique, point d’amélioration… ou accident</span></div>';
+  h+='<div class="bul-decl no-print"><button class="btn btn-decl" onclick="ouvrirDeclarer()"><svg class="ico-decl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2 1.3 21h21.4L12 2.2z" fill="#fff"/><path d="M12 8.6v6.2" stroke="#D7261E" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18" r="1.5" fill="#D7261E"/></svg>Déclarer un événement</button><span class="muted">situation dangereuse, presqu’accident, bonne pratique, point d’amélioration… ou accident</span></div>';
 
   /* ---- faits marquants : masqués pour les lecteurs tant que rien n'est saisi ; la saisie se fait dans la zone HSE ---- */
   if(faits||estEditeur()){

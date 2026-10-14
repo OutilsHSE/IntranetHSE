@@ -831,6 +831,15 @@
   /* ---- V3.3.2 : retours esthétiques de Justin ---- */
   .bul-decl{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:2px 4px}
   .bul-decl .muted{font-size:12.5px}
+  /* V3.3.2 : bouton de déclaration rouge, picto « danger » dessiné (pas d'emoji) */
+  .btn-decl{display:inline-flex;align-items:center;gap:9px;background:#D7261E;color:#fff;border:1px solid #B71C15;font-weight:800;letter-spacing:.2px;box-shadow:0 3px 10px rgba(215,38,30,.28)}
+  .btn-decl:hover{background:#B71C15;color:#fff;transform:translateY(-1px);box-shadow:0 5px 14px rgba(215,38,30,.35)}
+  .btn-decl:active{transform:none}
+  .btn-decl .ico-decl{width:22px;height:22px;flex:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+  .btn-decl.btn-sm .ico-decl{width:17px;height:17px}
+  .bul-decl .btn-decl{padding:11px 18px;font-size:15px}
+  .h-decl{display:flex;align-items:center;gap:10px}
+  .ico-decl.rouge{width:26px;height:26px}.ico-decl.rouge path:first-child{fill:#D7261E}.ico-decl.rouge path:nth-child(2){stroke:#fff}.ico-decl.rouge circle{fill:#fff}
   .bul-at{grid-column:span 2;background:#fff;color:var(--txt);border:1px solid var(--line);text-align:left;display:grid;grid-template-columns:1fr;gap:10px;padding:14px 16px}
   .bul-at.large{grid-column:1/-1;grid-template-columns:1fr 1fr}
   .bul-at-b{background:#f6f9fb;border-radius:12px;padding:10px 14px}

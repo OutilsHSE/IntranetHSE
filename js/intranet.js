@@ -757,22 +757,24 @@ function renderTiles(){
     h+='<div class="rub"><div class="rt" style="color:'+coul+'"><span class="dot" style="background:'+coul+'"></span><span class="rtxt">'+esc(cat)+'</span></div><div class="rtiles">';
     list.forEach(o=>{h+=tuileHtml(o)});
     h+='</div></div>'});
-  // la case service HSE vit en bas, juste au-dessus de sa section
-  h+='<label class="hsetoggle no-print" title="Afficher les outils utilisés par le service HSE"><input type="checkbox" id="t-hse" '+(conf.affHSE?'checked':'')+' onchange="setAffHSE(this.checked)"> 🛠<span class="htxt"> Outils du service HSE</span></label>';
-  if(conf.affHSE){
+  // la case service HSE vit en bas, juste au-dessus de sa section — V3.3.2 : ÉDITEUR SEULEMENT
+  // (un lecteur ne voit ni la case ni les tuiles ; le serveur V29.5 ne lui envoie d'ailleurs ni les tuiles HSE ni leurs liens)
+  if(estEditeur())h+='<label class="hsetoggle no-print" title="Afficher les outils utilisés par le service HSE"><input type="checkbox" id="t-hse" '+(conf.affHSE?'checked':'')+' onchange="setAffHSE(this.checked)"> 🛠<span class="htxt"> Outils du service HSE</span></label>';
+  if(estEditeur()&&conf.affHSE){
     const list=outilsTries().filter(o=>!o.masque&&(o.hse||(o.cat||'')===CAT_HSE)&&correspond(o));
     if(list.length){
       h+='<div class="rub"><div class="rt" style="color:'+CAT_COUL[CAT_HSE]+'"><span class="dot" style="background:'+CAT_COUL[CAT_HSE]+'"></span><span class="rtxt">'+esc(CAT_HSE)+'</span></div><div class="rtiles">';
       list.forEach(o=>{h+=tuileHtml(o)});
       h+='</div></div>'}}
   box.innerHTML=h||'<div class="empty"><div class="big">🧰</div>Aucun outil ne correspond.</div>'}
-function setAffHSE(v){conf.affHSE=!!v;saveConfLS();renderTiles()}
+function setAffHSE(v){if(!estEditeur())return;conf.affHSE=!!v;saveConfLS();renderTiles()}
 function basculerVolet(){
   if(window.innerWidth<=920){document.body.classList.toggle('menuopen');return}
   document.body.classList.toggle('voletReduit');
   conf.voletReduit=document.body.classList.contains('voletReduit');saveConfLS()}
 function openLiens(id){
   const o=state.outils.find(x=>x.id===id);if(!o)return;
+  if(o.hse&&!estEditeur())return;
   const liens=(o.links||[]).filter(l=>l&&l.u);
   document.getElementById('ml-titre').textContent=o.nom;
   document.getElementById('ml-sous').textContent=o.desc||'';
