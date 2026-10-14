@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.3.4';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
+const APP_VERSION = 'V3.3.6';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -1558,6 +1558,7 @@ function reappliquer(r){let n=0;
     r[k].forEach(o=>{const c=cleColl(k,o);const i=state[k].findIndex(x=>cleColl(k,x)===c);
       if(i<0){state[k].push(o);n++}else if(!state[k][i].maj||String(state[k][i].maj)<String(o.maj)){state[k][i]=o;n++}})});
   return n>0}
+function empreinteDonnees(){try{return JSON.stringify([state.mensuel,state.incidents,state.remontees,state.se,state.objectifs,state.chantiers,state.params,BASCULE,QHP&&QHP.mois?QHP.mois.length:0])}catch(e){return String(Math.random())}}
 function appliquer(d){
   ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{if(Array.isArray(d[k]))state[k]=d[k]});
   if(d.bascule&&/^\d{4}-\d{2}$/.test(d.bascule))BASCULE=d.bascule;
@@ -1583,10 +1584,14 @@ async function syncNow(manuel){
        réponse du serveur : on le remet par-dessus, sinon la case « perdait » le chiffre
        et il fallait le retaper. Il repart à la synchro suivante. */
     const recents=modifsDepuis(t0);
+    const avant=empreinteDonnees();
     appliquer(j.data||{});
     if(reappliquer(recents)){save();syncAuto()}
+    const change=empreinteDonnees()!==avant;
     conf.dernierSync=nowISO();saveConf();
-    rafraichirApresSynchro();                       // V3.3.4 : en place, sans remonter la page
+    /* V3.3.6 : on ne redessine QUE si la synchro a rapporté quelque chose de nouveau
+       (un autre appareil, la collecte de nuit). Sinon l'écran ne bouge pas du tout. */
+    if(change)rafraichirApresSynchro();
     syncEtat('✅ Synchronisé à '+new Date().toLocaleTimeString('fr-FR').slice(0,5));
     if(manuel)toast('Synchronisé ✓');
     return true;
@@ -1820,6 +1825,7 @@ function collerJSON(){
 /* ==================== DÉMARRAGE ==================== */
 function demarrer(){
   load();
+  try{document.getElementById('rep-version').textContent=APP_VERSION}catch(e){}
   /* réservé au service HSE : sans code éditeur (celui de l'intranet), rien ne s'affiche */
   if(!estBranche()){
     document.body.classList.add('verrou');

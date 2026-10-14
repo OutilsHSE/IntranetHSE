@@ -1,4 +1,4 @@
-const APP_VERSION='V3.3.5';   // 15/10/2026 — photos RETEX : file d'attente, échec affiché ; + V3.3.4 zone HSE en briques, Reporting autonome
+const APP_VERSION='V3.3.6';   // 15/10/2026 — Reporting : plus de redessin si la synchro n'apporte rien ; fichiers toujours à jour ; brique Analyse d'accident
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}

@@ -255,6 +255,8 @@ function renderTodo(){
   let h='<div class="briques-titre">🔒 Zone HSE <span class="muted">· réservée au service HSE</span></div><div class="briques">';
   h+=briqueLien('🧮','Reporting HSE','Mensuel, accidentologie, santé & environnement, flashs, objectifs','hse.html','br-reporting');
   h+=briqueLien('📊','Suivi des Vigiminutes',vigiBranche?'Taux de réalisation par chantier et par bateau':'S’ouvre sans connexion tant que le lien de branchement n’est pas posé',vigi,'br-vigi');
+  const aa=lienOutilId('analyseacc'), aaBranche=/#config=/.test(aa);
+  h+=briqueLien('🚨','Analyse d’accident',aaBranche?'Recueil des faits, arbre des causes, rapport':'S’ouvre sans connexion tant que le lien de branchement n’est pas posé',aa,'br-aa');
   /* -- à faire -- */
   const td=state.todo;
   let corpsT, resT;
