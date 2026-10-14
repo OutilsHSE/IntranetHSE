@@ -1,4 +1,4 @@
-const APP_VERSION='V3.3.3';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
+const APP_VERSION='V3.3.5';   // 15/10/2026 — photos RETEX : file d'attente, échec affiché ; + V3.3.4 zone HSE en briques, Reporting autonome
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -36,7 +36,7 @@ const DEF_OUTILS=[
  {id:'analyseacc',cat:CAT_HSE,ico:'🚨',nom:'Analyse d’accident',desc:'Recueil des faits, arbre des causes, rapport',url:'https://outilshse.github.io/AnalyseAccident/',hse:true},
  {id:'suiviqhp',cat:CAT_HSE,ico:'📋',nom:'Suivi des QHP',desc:'Fiches, bilan mensuel et annuel des Quarts d’Heure Prévention',url:'',hse:true},
  {id:'suivivigi',cat:CAT_HSE,ico:'📊',nom:'Suivi des Vigiminutes',desc:'Taux de réalisation hebdo par chantier et par bateau',url:'https://outilshse.github.io/Vigiminutes/',hse:true},
- {id:'repapp',cat:CAT_HSE,ico:'✍️',nom:'Reporting HSE',desc:'Saisie : mensuel, incidents, remontées, objectifs',url:'',hse:true},
+ {id:'repapp',cat:CAT_HSE,ico:'✍️',nom:'Reporting HSE',desc:'Saisie : mensuel, accidentologie, santé-environnement, flashs, objectifs',url:'',hse:true},
  {id:'reporting',cat:CAT_HSE,ico:'🗂️',nom:'Sheets de reporting',desc:'Accès direct aux classeurs Google',links:[],hse:true}
 ].map((o,i)=>Object.assign({url:'',links:[],hse:false},o,{ordre:(i+1)*10,maj:EPOCH,masque:false}));
 
@@ -238,14 +238,15 @@ let state={outils:[],kpi:{},kpiMaj:{},tombOutils:{},modeop:[],tombModeop:{},arri
    = cet appareil l'a déjà fait valider par le serveur. Ni l'un ni l'autre ne
    voyage dans la page ou dans config.js : ils vivent dans CE navigateur. */
 let conf={webhook:'',secret:'',appareil:'',autoSync:true,affHSE:false,lecture:'',deverrouille:false,deverrouilleLe:'',expireJours:30,partage:false};
-/* V28 — LES LIENS DE BRANCHEMENT DES OUTILS. Règle de Justin : un seul mot de
+/* V28 — LES LIENS DE BRANCHEMENT DES OUTILS. Règle du service HSE : un seul mot de
    passe pour les collaborateurs, celui de l'intranet. Une fois le verrou passé,
    le serveur envoie les liens « …/#config=… » des outils (prêt, QHP, PDP…) et la
    page les pose sur les tuiles : l'outil s'ouvre déjà branché, personne ne tape
    rien. Ces liens contiennent des secrets : ils vivent EN MÉMOIRE seulement —
    jamais dans localStorage — et s'effacent quand on verrouille l'appareil. */
 let liensOutils={};
-function lienOutil(o){const l=liensOutils&&liensOutils[o.id];return (typeof l==='string'&&/^https:\/\//.test(l))?l:(o.url||'')}
+function lienOutil(o){if(o&&o.id==='repapp')return 'hse.html';   // V3.3.4 : le Reporting fait partie du dépôt (l'ancien dépôt Reporting-HSE est abandonné)
+  const l=liensOutils&&liensOutils[o.id];return (typeof l==='string'&&/^https:\/\//.test(l))?l:(o.url||'')}
 let qhpAuto=null, repAuto=null, objAuto=null, tuileEnCours=null;
 let periode='annee', moisChoisi='';
 /* '' = Global (toutes agences confondues) */
@@ -276,7 +277,7 @@ function completerDefauts(){
   });
   /* La tuile « Modes opératoires » devient « Banque documentaire » : elle
      accueille aussi les flashs. On ne renomme que si elle porte encore son nom
-     d'origine — un nom choisi par Justin n'est jamais écrasé. */
+     d'origine — un nom choisi par le service HSE n'est jamais écrasé. */
   const bq=state.outils.find(o=>o.id==='modeop');
   if(bq&&bq.nom==='Modes opératoires'){
     bq.nom='Banque documentaire';bq.ico='📚';
@@ -319,7 +320,7 @@ function setAgence(a){agenceChoisie=a;conf.agence=a;saveConfLS();renderDash();re
   if(typeof arrivFiltre!=='undefined'){arrivFiltre.agence=a||'';if(document.getElementById('v-arriv').classList.contains('active'))renderArrivants()}
   try{if(document.getElementById('v-retex').classList.contains('active')&&typeof renderRetex==='function')renderRetex();}catch(e){}
   try{if(document.getElementById('v-rem').classList.contains('active'))renderRemontees();if(document.getElementById('v-hse').classList.contains('active'))renderTodo()}catch(e){}
-  envoyerAgenceHSE()}
+}
 function objData(){return objAuto||(demoMode()?DEMO_OBJ:null)}
 /* Les mois exploitables : dès qu'une seule donnée du mois est renseignée.
    On ne se limite plus aux heures travaillées, sinon le sélecteur de mois
@@ -394,7 +395,7 @@ function go(v){
   if(v==='v-rem'&&typeof renderRemontees==='function')renderRemontees();
   if(v==='v-qhp'&&typeof renderQhp==='function')renderQhp();
   if(v==='v-retex'&&typeof renderRetex==='function'){retexVue.id=null;renderRetex()}
-  if(v==='v-hse'){ouvrirZoneHSE();if(typeof renderTodo==='function')renderTodo()}
+  if(v==='v-hse'&&typeof renderTodo==='function')renderTodo();
   document.body.classList.remove('menuopen');
   majNav();
   window.scrollTo(0,0)}
@@ -407,28 +408,9 @@ function majNav(){
   const v=document.getElementById('apropos-volet');if(v)v.textContent='Intranet HSE CDES · '+APP_VERSION;
   const c=document.getElementById('opt-partage-volet');if(c)c.checked=!!conf.partage;
 }
-/* V3 — ZONE HSE : le Reporting (hse.html, même dépôt) affiché dans un cadre.
-   Chargé à la première ouverture seulement ; il hérite du code éditeur par le
-   stockage local (même origine) et reçoit l'agence choisie en haut de page. */
-let hsePret=false;
-function ouvrirZoneHSE(){
-  const f=document.getElementById('hse-frame');if(!f)return;
-  if(!f.getAttribute('src')){f.setAttribute('src','hse.html');return}
-  envoyerAgenceHSE();
-}
-function envoyerAgenceHSE(){
-  const f=document.getElementById('hse-frame');
-  if(!f||!f.contentWindow||!hsePret)return;
-  try{f.contentWindow.postMessage({type:'hse-agence',agence:agenceChoisie||''},location.origin)}catch(e){}
-}
-window.addEventListener('message',ev=>{
-  if(ev.origin!==location.origin)return;
-  const d=ev.data||{};
-  if(d.type==='hse-pret'){hsePret=true;const f=document.getElementById('hse-frame');
-    if(f&&f.contentWindow&&conf.webhook&&conf.secret)try{f.contentWindow.postMessage({type:'hse-conf',webhook:conf.webhook,secret:conf.secret,appareil:conf.appareil||''},location.origin)}catch(e){}
-    envoyerAgenceHSE()}
-});
-
+/* V3.3.4 — ZONE HSE en briques (terrain.js ▸ renderTodo). Le Reporting n'est plus
+   affiché dans un cadre : il s'ouvre dans son propre onglet (hse.html), où il retrouve
+   seul le code éditeur de cet appareil (même adresse, même stockage local). */
 /* ==================== PORTAIL ==================== */
 const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="10" height="8" rx="1.5"/><path d="M3 12.5h10M8 9V6.5"/><g stroke="#C25A08"><path d="M16 9.5h4.5M18.5 7.5l2 2-2 2"/><path d="M20.5 15.5H16M18 13.5l-2 2 2 2"/></g></svg>','pdp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3.5h6V5"/><g stroke="#C25A08"><path d="M9 13.5l2.3 2.3L16 11"/></g></svg>','pae':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M10 17c0-3.2 2.2-5 5-5 0 3.2-2.2 5-5 5zM10 17c1-1.6 2.4-2.8 4-3.4"/></g></svg>','paq':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M12.5 13.5c1.3 0 2-.7 3-.7s1.7.7 3 .7c0 3-1.4 4.8-3 5.5-1.6-.7-3-2.5-3-5.5z"/></g></svg>','vigiminute':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7"/><path d="M12 6.5V4M10 3.5h4"/><g stroke="#C25A08"><path d="M12 13.5l3.2-2.4"/></g></svg>','vms':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.6"/><path d="M4.5 19c0-3 2-4.8 4.5-4.8S13.5 16 13.5 19"/><circle cx="16" cy="9" r="2"/><path d="M15.5 14.5c2.4 0 4 1.6 4 4.1"/><g stroke="#C25A08"><path d="M15.6 17.7l1.3 1.3 2.3-2.4"/></g></svg>','crhse':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 11.5h6"/><g stroke="#C25A08"><path d="M12.5 18.5l5.5-5.5 1.8 1.8-5.5 5.5-2.3.5z"/></g></svg>','emargement':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12v8.5H9.5L6 16.5v-3H4z"/><g stroke="#C25A08"><path d="M13 19.5c1.4-1.8 2.6.9 4.6-1M19 12.5l1.5 1.5"/></g></svg>','accueilsecu':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="7.5" r="3"/><path d="M4 20c0-3.6 2.4-5.6 5.5-5.6 1 0 1.9.2 2.7.6"/><g stroke="#C25A08"><path d="M14.5 14.2c1 0 1.6-.6 2.4-.6s1.4.6 2.4.6c0 2.6-1.1 4.2-2.4 4.8-1.3-.6-2.4-2.2-2.4-4.8z"/></g></svg>','fformation':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="11" rx="1.8"/><path d="M12 16v3M8.5 19h7"/><circle cx="9" cy="9.3" r="1.7"/><path d="M6.2 13.5c.5-1.4 1.6-2 2.8-2s2.3.6 2.8 2"/><g stroke="#C25A08"><path d="M14.8 9.6l1.4 1.4 2.4-2.5"/></g></svg>','autoconduite':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5V10h6l1.5 3v2.5"/><circle cx="6.5" cy="18" r="1.7"/><circle cx="11" cy="18" r="1.7"/><path d="M15 8v8.5M15 16.5h4.5"/><g stroke="#C25A08"><path d="M17 6.5l1.3 1.3 2.3-2.4"/></g></svg>','retex':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M17.5 3.5l.3 3 3-.3"/><g stroke="#C25A08"><path d="M12.8 7.5l-3 5h2.6l-1.6 4 4.6-5.8h-2.7l2-3.2z"/></g></svg>','analyseacc':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5L21 19.5H3z"/><g stroke="#C25A08"><path d="M12 10v4M12 16.6v.01"/></g></svg>','planning':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1.8"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/><g stroke="#C25A08"><path d="M9.5 15l2 2 3.5-3.5"/></g></svg>','suiviqhp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h15M7.5 19.5v-5M11.5 19.5v-9M15.5 19.5v-7"/><g stroke="#C25A08"><circle cx="17.5" cy="7" r="2.6"/><path d="M16.5 7l.8.8 1.4-1.5"/></g></svg>','suivivigi':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5c2.4-3.8 5.6-5.7 8.5-5.7s6.1 1.9 8.5 5.7c-2.4 3.8-5.6 5.7-8.5 5.7s-6.1-1.9-8.5-5.7z"/><g stroke="#C25A08"><path d="M7.5 14.5l2.8-2.8 1.9 1.9 4-4M16.2 9.6h2.4v2.4"/></g></svg>','reporting':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1.8"/><path d="M4 9.5h16M9.5 9.5V20"/><g stroke="#C25A08"><rect x="13" y="13" width="4" height="4" rx=".8" fill="#C25A08" stroke="none"/></g></svg>'};
 function outilsTries(){return state.outils.filter(o=>!o.supprime).sort((a,b)=>(a.ordre||0)-(b.ordre||0))}
@@ -1573,7 +1555,7 @@ function raccourciArrivants(){
 /* --- l'écran --- */
 /* ===========================================================================
  *  SUIVI DES NOUVEAUX ARRIVANTS — V3.1 (09/10/2026)
- *  Décisions de Justin : un TABLEAU PAR AGENCE, les points contrôlés en
+ *  Décisions du service HSE : un TABLEAU PAR AGENCE, les points contrôlés en
  *  colonnes, une case à TROIS ÉTATS (à faire ☐ · fait ✅ à la date du jour ·
  *  NA — non concerné), plus d'étapes intermédiaires dans la page, pas de NA
  *  automatique. Un parcours complet sort du tableau après 3 mois ; le bouton
@@ -1595,7 +1577,7 @@ function arrivAncien(a){
   const lim=new Date();lim.setMonth(lim.getMonth()-ARRIV_MOIS_SORTIE);
   return d<lim.toISOString().slice(0,10);
 }
-/* V3.3.2 — Clic sur une case : un PETIT MENU explicite (retour de Justin : le
+/* V3.3.2 — Clic sur une case : un PETIT MENU explicite (retour du service HSE : le
    cycle de 3 clics n'était pas devinable). Choix : ✅ fait aujourd'hui ·
    📅 fait à une autre date · — non concerné · ☐ à faire. L'écran est mis à
    jour tout de suite ; la case montre un petit sablier tant que le serveur
@@ -1718,7 +1700,7 @@ function renderArrivants(){
 
 /* ===========================================================================
  *  LES DEUX TABLEAUX QHP — version lisible
- *  Objectif de Justin : voir d'un coup d'œil QUI ne participe pas, et où en
+ *  Objectif du service HSE : voir d'un coup d'œil QUI ne participe pas, et où en
  *  sont TOUS les conducteurs. Les grilles mois par mois existent toujours,
  *  mais repliées : on ne les ouvre que pour vérifier un cas précis.
  *  Ce bloc ne dépend que de esc() et de MOIS_C : il est repris tel quel dans
@@ -1971,8 +1953,14 @@ function appliquer(d){
   if(d.tombOutils&&typeof d.tombOutils==='object')state.tombOutils=d.tombOutils;
   completerDefauts();          // les tuiles de la version en cours ne disparaissent pas à la synchro
   state.outils.forEach(o=>{if(!Array.isArray(o.links))o.links=[]});
-  if(d.kpi&&typeof d.kpi==='object')state.kpi=d.kpi;
-  if(d.kpiMaj&&typeof d.kpiMaj==='object')state.kpiMaj=d.kpiMaj;
+  /* V3.3.4 : une valeur saisie PENDANT que la synchro était en route (plus récente que
+     celle du serveur) n'est plus écrasée par la réponse — elle repart au tour suivant. */
+  if(d.kpi&&typeof d.kpi==='object'){
+    const locK=state.kpi||{}, locM=state.kpiMaj||{}, srvM=(d.kpiMaj&&typeof d.kpiMaj==='object')?d.kpiMaj:{};
+    const garder=Object.keys(locM).filter(k=>locM[k]&&(!srvM[k]||String(locM[k])>String(srvM[k])));
+    state.kpi=d.kpi; state.kpiMaj=Object.assign({},srvM);
+    garder.forEach(k=>{state.kpi[k]=locK[k];state.kpiMaj[k]=locM[k]});
+  }else if(d.kpiMaj&&typeof d.kpiMaj==='object')state.kpiMaj=d.kpiMaj;
   /* on ne garde que des blocs bien formés : un souci serveur ne doit jamais casser la page */
   if(d.qhp&&Array.isArray(d.qhp.mois))qhpAuto=d.qhp;
   if(d.obj&&Array.isArray(d.obj.objectifs))objAuto=d.obj;
@@ -1993,6 +1981,16 @@ function appliquer(d){
   if(d.tombModeop&&typeof d.tombModeop==='object')state.tombModeop=d.tombModeop;
   save();
   /* V3 : l'écran ouvert se met à jour lui aussi (les données arrivent APRÈS le verrou) */
+  /* V3.3.4 : jamais pendant qu'on écrit dans une case de l'écran (commentaire de remontée…) :
+     on attend qu'on en sorte, et on garde la position de la page. */
+  const ecr=document.activeElement;
+  if(ecr&&/^(INPUT|TEXTAREA|SELECT)$/.test(ecr.tagName)&&ecr.closest('main')){
+    if(!window.__rafraichirIntranet){window.__rafraichirIntranet=true;ecr.addEventListener('blur',()=>{setTimeout(()=>{window.__rafraichirIntranet=false;const y=window.scrollY;rafraichirEcranActif();window.scrollTo(0,y)},300)},{once:true})}
+    return;
+  }
+  rafraichirEcranActif();
+}
+function rafraichirEcranActif(){
   try{const act=document.querySelector('.view.active');
     if(act&&act.id==='v-arriv')renderArrivants();
     if(act&&act.id==='v-rem'&&typeof renderRemontees==='function')renderRemontees();

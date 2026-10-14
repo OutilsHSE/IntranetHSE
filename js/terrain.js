@@ -16,7 +16,7 @@ const REM_DOMAINES=['Sécurité','Santé','Environnement','Réglementaire','Dém
 const REM_STATUTS=['Non traitée','En cours','Traitée'];
 const AT_TYPES=['Presqu\'Accident de Travail','Accident Bénin','Accident sans Arrêt de Travail','Accident avec Arrêt de Travail','Accident de trajet'];
 const AG_LIBS={IDF:'Île-de-France',NA:'Nouvelle-Aquitaine',BPL:'Bretagne – Pays de la Loire'};
-let remFiltre={statut:'ouvertes',source:'',cond:''};
+let remFiltre={statut:'toutes',source:'',cond:''};
 /* conducteur de travaux du chantier : d'après les fiches QHP (carte chantier → conducteur servie avec le suivi QHP) */
 function netCh(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
 function conducteurDe(chantier){const q=(typeof qhpData==='function')?qhpData():null;const m=q&&q.chantierConducteur;if(!m)return '';const k=netCh(chantier);if(!k)return '';if(m[k])return m[k];const hit=Object.keys(m).find(x=>x.length>=5&&(k.indexOf(x)>=0||x.indexOf(k)>=0));return hit?m[hit]:''}
@@ -157,7 +157,7 @@ function renderRemontees(){
     +'<p class="small muted" style="margin:2px 0 0">Vigiminutes (📱, remontées par la collecte) et déclarations faites depuis l’intranet (📝), au même endroit. Le conducteur de travaux est celui de la Vigiminute d’origine (une Vigiminute = un chantier = un conducteur) ; pour une déclaration faite ici, celui de la dernière Vigiminute du chantier. Chacun peut <b>changer le statut</b>, noter <b>l’action décidée</b> (qui, pour quand) et <b>ajouter un commentaire</b>. Rien ne s’efface, tout est tracé.</p></div>'
     +'<div class="arr-kpis"><span class="ak"><b>'+tous.length+'</b> remontées</span><span class="ak '+(ouv?'bad':'ok')+'"><b>'+ouv+'</b> ouvertes</span><span class="ak '+(sansRep?'bad':'ok')+'"><b>'+sansRep+'</b> sans réponse</span></div></div>';
   h+='<div class="row no-print arr-bar"><button class="btn btn-decl btn-sm" onclick="ouvrirSignaler()"><svg class="ico-decl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2 1.3 21h21.4L12 2.2z" fill="#fff"/><path d="M12 8.6v6.2" stroke="#D7261E" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18" r="1.5" fill="#D7261E"/></svg>Déclarer</button>'
-    +'<span class="seg" style="background:#fff">'+[['ouvertes','Ouvertes'],['toutes','Toutes'],['Traitée','Traitées']].map(x=>'<button class="'+(remFiltre.statut===x[0]?'on':'')+'" onclick="setRemFiltre(\'statut\',\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</span>'
+    +'<span class="seg" style="background:#fff">'+[['toutes','Toutes'],['ouvertes','Ouvertes'],['Traitée','Traitées']].map(x=>'<button class="'+(remFiltre.statut===x[0]?'on':'')+'" onclick="setRemFiltre(\'statut\',\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</span>'
     +'<span class="seg" style="background:#fff">'+[['','Toutes sources'],['vigi','📱 Vigiminutes'],['encadrant','📝 Intranet']].map(x=>'<button class="'+(remFiltre.source===x[0]?'on':'')+'" onclick="setRemFiltre(\'source\',\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</span>'
     +(conducteursConnus().length?'<select class="fsel" onchange="setRemFiltre(\'cond\',this.value)"><option value="">Tous les conducteurs</option>'+conducteursConnus().map(c=>'<option'+(remFiltre.cond===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>':'')+'</div>';
   const groupes=AGENCES_ORDRE.filter(g=>!agenceChoisie||g.code===agenceChoisie);
@@ -226,26 +226,64 @@ function enregistrerRemAction(){
   envoyerRemontees([o],'Action enregistrée ✓');
 }
 
-/* ---------- ✅ To-do HSE (zone HSE, éditeur) ---------- */
+/* ---------- 🔒 ZONE HSE en BRIQUES (V3.3.4, retours du 14/10) ----------
+   Plus de Reporting dans un cadre (double défilement, couleurs illisibles) : la zone
+   HSE est une grille de briques. Les briques d'outils ouvrent l'application dans un
+   nouvel onglet ; les briques de saisie (à faire, faits marquants, année précédente)
+   se déplient sur place et restent fermées par défaut, pour ne pas « manger la page ».
+   L'état ouvert / fermé est retenu sur cet appareil. */
 const TODO_ICO={accident:'🚨',action:'🛠️',remontee:'📬',arrivant:'👷',reporting:'📊',donnee:'🧩'};
+let briquesOuvertes=(function(){try{return JSON.parse(localStorage.getItem('ihse_briques')||'{}')||{}}catch(e){return {}}})();
+function briqueBascule(el){const k=el&&el.dataset&&el.dataset.b;if(!k)return;
+  if(el.open)briquesOuvertes[k]=1;else delete briquesOuvertes[k];
+  try{localStorage.setItem('ihse_briques',JSON.stringify(briquesOuvertes))}catch(e){}}
+function brique(k,ico,titre,resume,corps,classe){
+  return '<details class="brique'+(classe?' '+classe:'')+'" data-b="'+k+'"'+(briquesOuvertes[k]?' open':'')+' ontoggle="briqueBascule(this)">'
+    +'<summary><span class="br-ico">'+ico+'</span><span class="br-t"><b>'+titre+'</b><span class="br-r">'+resume+'</span></span><span class="br-fl" aria-hidden="true">▾</span></summary>'
+    +'<div class="br-corps">'+corps+'</div></details>';
+}
+function briqueLien(ico,titre,resume,url,id){
+  if(!url)return '<div class="brique br-lien off"><span class="br-ico">'+ico+'</span><span class="br-t"><b>'+titre+'</b><span class="br-r">lien à brancher (voir le mode opératoire)</span></span></div>';
+  return '<a class="brique br-lien" id="'+id+'" href="'+esc(url)+'" target="_blank" rel="noopener"><span class="br-ico">'+ico+'</span><span class="br-t"><b>'+titre+'</b><span class="br-r">'+resume+'</span></span><span class="br-fl" aria-hidden="true">↗</span></a>';
+}
+function lienOutilId(id){const o=(state.outils||[]).find(x=>x.id===id)||DEF_OUTILS.find(x=>x.id===id);return o?lienOutil(o):''}
 function renderTodo(){
   const box=document.getElementById('hse-todo');if(!box)return;
-  const td=state.todo;
   if(!estEditeur()){box.innerHTML='';return}
-  if(!td||!Array.isArray(td.items)){box.innerHTML='<div class="card"><h2>✅ À faire — service HSE</h2><p class="muted">La liste arrive à la prochaine synchronisation (bouton 🔄 en haut).</p></div>'+renderFaitsHSE();return}
-  const items=td.items.filter(i=>!agenceChoisie||!i.agence||i.agence===agenceChoisie);
-  const vus=(conf.todoVus||{});
-  const actifs=items.filter(i=>!vus[i.titre+'|'+i.id]);
-  let h='<div class="card todo"><h2>✅ À faire — service HSE <span class="apill">'+actifs.length+'</span><span class="small muted" style="margin-left:auto;font-weight:400">calculée à la synchro'+(td.calculeLe?' · '+esc(frDateCourt(String(td.calculeLe).slice(0,10))):'')+'</span></h2>';
-  if(!actifs.length)h+='<p class="muted" style="margin:0">Rien en attente'+(agenceChoisie?' pour cette agence':'')+' — tout est à jour 🎉</p>';
-  else h+='<div class="todo-l">'+actifs.slice(0,40).map(i=>'<div class="todo-i p'+(i.prio||3)+'"><span class="todo-ico">'+(TODO_ICO[i.type]||'•')+'</span><div class="grow"><b>'+esc(i.titre)+'</b>'+(i.agence?' <span class="apill ag-'+esc(i.agence)+'">'+esc(i.agence)+'</span>':'')+'<div class="small muted">'+esc(i.detail||'')+'</div></div>'
-    +'<button class="btn btn-ghost btn-sm no-print" title="Masquer sur cet appareil" onclick="todoVu(\''+esc(i.titre+'|'+i.id)+'\')">✓</button></div>').join('')+'</div>';
-  if(Object.keys(vus).length)h+='<p class="hint" style="margin:8px 0 0"><a href="#" onclick="conf.todoVus={};saveConfLS();renderTodo();return false">Réafficher les éléments masqués ('+Object.keys(vus).length+')</a></p>';
+  /* -- briques d'outils -- */
+  const vigi=lienOutilId('suivivigi'), vigiBranche=/#config=/.test(vigi);
+  let h='<div class="briques-titre">🔒 Zone HSE <span class="muted">· réservée au service HSE</span></div><div class="briques">';
+  h+=briqueLien('🧮','Reporting HSE','Mensuel, accidentologie, santé & environnement, flashs, objectifs','hse.html','br-reporting');
+  h+=briqueLien('📊','Suivi des Vigiminutes',vigiBranche?'Taux de réalisation par chantier et par bateau':'S’ouvre sans connexion tant que le lien de branchement n’est pas posé',vigi,'br-vigi');
+  /* -- à faire -- */
+  const td=state.todo;
+  let corpsT, resT;
+  if(!td||!Array.isArray(td.items)){resT='la liste arrive à la prochaine synchronisation';corpsT='<p class="muted">La liste arrive à la prochaine synchronisation (bouton 🔄 en haut).</p>'}
+  else{
+    const items=td.items.filter(i=>!agenceChoisie||!i.agence||i.agence===agenceChoisie);
+    const vus=(conf.todoVus||{});
+    const actifs=items.filter(i=>!vus[i.titre+'|'+i.id]);
+    const urg=actifs.filter(i=>(i.prio||3)===1).length;
+    resT=actifs.length?(actifs.length+' élément'+(actifs.length>1?'s':'')+(urg?' · <b class="rouge">'+urg+' urgent'+(urg>1?'s':'')+'</b>':'')):'rien en attente 🎉';
+    corpsT='<p class="hint" style="margin:0 0 8px">Calculée à la synchro'+(td.calculeLe?' · '+esc(frDateCourt(String(td.calculeLe).slice(0,10))):'')+(agenceChoisie?' · agence '+esc(agenceChoisie):'')+'</p>';
+    if(!actifs.length)corpsT+='<p class="muted" style="margin:0">Rien en attente'+(agenceChoisie?' pour cette agence':'')+' — tout est à jour 🎉</p>';
+    else corpsT+='<div class="todo-l">'+actifs.slice(0,40).map(i=>'<div class="todo-i p'+(i.prio||3)+'"><span class="todo-ico">'+(TODO_ICO[i.type]||'•')+'</span><div class="grow"><b>'+esc(i.titre)+'</b>'+(i.agence?' <span class="apill ag-'+esc(i.agence)+'">'+esc(i.agence)+'</span>':'')+'<div class="small muted">'+esc(i.detail||'')+'</div></div>'
+      +'<button class="btn btn-ghost btn-sm no-print" title="Masquer sur cet appareil" onclick="todoVu(\''+esc(i.titre+'|'+i.id)+'\')">✓</button></div>').join('')+'</div>';
+    if(Object.keys(vus).length)corpsT+='<p class="hint" style="margin:8px 0 0"><a href="#" onclick="conf.todoVus={};saveConfLS();renderTodo();return false">Réafficher les éléments masqués ('+Object.keys(vus).length+')</a></p>';
+  }
+  h+=brique('todo','✅','À faire',resT,corpsT,'todo');
+  /* -- faits marquants -- */
+  const kCour=bulMoisCourantSur();const fCour=String(kpiVal('faits.'+kCour)||'').trim();
+  h+=brique('faits','📣','Faits marquants',fCour?(fCour.split(/\n+/).filter(Boolean).length+' point(s) pour '+esc(typeof bulLib==='function'?bulLib(kCour).toLowerCase():kCour)):'rien de saisi pour '+esc(typeof bulLib==='function'?bulLib(kCour).toLowerCase():kCour),renderFaitsHSE());
+  /* -- année précédente -- */
+  const anCour=new Date().getFullYear(); if(!bilanAn)bilanAn=String(anCour-1);
+  const bo=bulBilanLu(bilanAn);
+  h+=brique('bilan','📅','Année précédente',esc(bilanAn)+' · '+(bo?'bilan saisi ✓':'<b class="orange">rien de saisi</b>')+' · '+esc(agenceChoisie?('agence '+agenceChoisie):'Global'),renderBilanHSE());
   h+='</div>';
-  h+=renderFaitsHSE();                     // V3.3.2 : la saisie des faits marquants vit ici, pas sur la page de consultation
-  h+=renderBilanHSE();                     // V3.3.2 : les totaux de l'année précédente (colonne N-1 du bulletin)
   box.innerHTML=h;
 }
+function bulMoisCourantSur(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function bulBilanLu(an){const brut=kpiVal(bulBilanCle(an,agenceChoisie));if(!brut)return null;try{return JSON.parse(brut)}catch(e){return null}}
 /* ---------- 📷 Photos des remontées Vigiminutes (V3.3.2) ----------
    Le lien Drive de la photo est dans la colonne « photo » (serveur V29.4). Un collègue
    n'a pas accès au Drive : la page demande l'image AU SERVEUR (action « photo », mot de
@@ -286,20 +324,23 @@ function renderBilanHSE(){
   const anCour=new Date().getFullYear(); if(!bilanAn)bilanAn=String(anCour-1);
   const cle=bulBilanCle(bilanAn,agenceChoisie), brut=kpiVal(cle); let o=null; try{o=brut?JSON.parse(brut):null}catch(e){}
   const c=(o&&o.cdes)||{}, i=(o&&o.interim)||{};
+  const hC=Number(c.heures)||0;
+  const tgCalc=hC?((Number(c.joursArret)||0)*1000/hC).toFixed(2).replace('.',','):null, tfCalc=hC?((Number(c.accArret)||0)*1e6/hC).toFixed(2).replace('.',','):null;
   const portee=agenceChoisie?('agence '+agenceChoisie):'CDES — toutes agences';
   const ans=[anCour-1,anCour-2,anCour-3].map(a=>'<option'+(String(a)===bilanAn?' selected':'')+'>'+a+'</option>').join('');
   const inp=(id,v,ph)=>'<input type="number" min="0" step="any" id="'+id+'" value="'+(v===undefined||v===null||v===''?'':esc(String(v)))+'" placeholder="'+(ph||'')+'" style="width:100%">';
-  let h='<div class="card"><h2>📊 Année précédente <span class="small muted" style="margin-left:auto;font-weight:400">colonne N-1 du bulletin · portée : '+esc(portee)+'</span></h2>'
-    +'<p class="small muted" style="margin:0 0 8px">Le classeur n’a pas les mois d’avant 2026 : tape ici les <b>totaux de l’année</b>. Ils remplacent la colonne de gauche du tableau « Reporting ». Le sélecteur d’agence en haut de page choisit la portée (Global = CDES entière).</p>'
+  let h='<p class="small muted" style="margin:0 0 8px">Colonne N-1 du bulletin · portée : <b>'+esc(portee)+'</b>. Le classeur n’a pas les mois d’avant 2026 : tape ici les <b>totaux de l’année</b>, tels qu’ils figurent dans ton bulletin. Ils remplacent la colonne de gauche du tableau « Reporting » (écran et PDF). Le sélecteur d’agence en haut de page choisit la portée (Global = CDES entière).</p>'
     +'<div class="row" style="align-items:center;gap:8px;margin-bottom:8px"><label class="f" style="margin:0">Année</label><select id="bl-an" style="width:120px" onchange="bilanAn=this.value;renderTodo()">'+ans+'</select>'
     +(o?'<span class="apill">saisi'+(o.maj?' · '+esc(frDateCourt(String(o.maj).slice(0,10))):'')+'</span>':'<span class="apill" style="background:#fff3e0;color:#9a5b00">rien de saisi</span>')+'</div>'
     +'<div class="agb-scroll"><table class="atab bl-tab"><thead><tr><th></th><th>CDES</th><th>Intérim</th></tr></thead><tbody>'
     +BILAN_CHAMPS.map(([k,lib])=>'<tr><th style="text-align:left">'+esc(lib)+'</th><td>'+inp('bl-c-'+k,c[k])+'</td><td>'+inp('bl-i-'+k,i[k])+'</td></tr>').join('')
     +'<tr><th style="text-align:left">Heures travaillées <span class="muted" style="font-weight:400">(pour Tg / Tf)</span></th><td>'+inp('bl-c-heures',c.heures,'ex. 150000')+'</td><td class="muted small">—</td></tr>'
+    +'<tr><th style="text-align:left">Taux de gravité (Tg)</th><td>'+inp('bl-c-tg',c.tg,tgCalc!==null?'calculé : '+tgCalc:'à taper, ou heures')+'</td><td class="muted small">—</td></tr>'
+    +'<tr><th style="text-align:left">Taux de fréquence (Tf)</th><td>'+inp('bl-c-tf',c.tf,tfCalc!==null?'calculé : '+tfCalc:'à taper, ou heures')+'</td><td class="muted small">—</td></tr>'
     +'</tbody></table></div>'
     +'<div class="row no-print" style="margin-top:10px;gap:8px"><button class="btn btn-primary btn-sm" onclick="enregistrerBilan()">Enregistrer</button>'
     +(o?'<button class="btn btn-ghost btn-sm" onclick="effacerBilan()">Effacer ce bilan</button>':'')
-    +'<span class="hint" style="margin:0">Tg = jours d’arrêt × 1 000 / heures · Tf = AT avec arrêt × 10⁶ / heures — calculés par la page.</span></div></div>';
+    +'<span class="hint" style="margin:0">Tg / Tf : la valeur tapée fait foi ; case vide = calcul depuis les heures (Tg = jours d’arrêt × 1 000 / heures · Tf = AT avec arrêt × 10⁶ / heures).</span></div>';
   return h;
 }
 function enregistrerBilan(){
@@ -308,6 +349,7 @@ function enregistrerBilan(){
   const cdes={},interim={};let rempli=false;
   BILAN_CHAMPS.forEach(([k])=>{const a=g('bl-c-'+k),b=g('bl-i-'+k);if(a!=='')cdes[k]=a;if(b!=='')interim[k]=b;if(a!==''||b!=='')rempli=true});
   const hh=g('bl-c-heures');if(hh!=='')cdes.heures=hh;
+  ['tg','tf'].forEach(k=>{const v=g('bl-c-'+k);if(v!==''&&!isNaN(v)){cdes[k]=v;rempli=true}});
   if(!rempli&&hh===''){toast('Rien à enregistrer : remplis au moins une case',true);return}
   const cle=bulBilanCle(bilanAn,agenceChoisie);
   state.kpi[cle]=JSON.stringify({cdes:cdes,interim:interim,maj:nowISO()});state.kpiMaj[cle]=nowISO();save();
@@ -325,7 +367,7 @@ function effacerBilan(){
 }
 function renderFaitsHSE(){
   const mois=[];const d=new Date();for(let i=0;i<4;i++){const x=new Date(d.getFullYear(),d.getMonth()-i,1);mois.push(x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'))}
-  return '<div class="card"><h2>📣 Faits marquants HSE <span class="small muted" style="margin-left:auto;font-weight:400">affichés en tête du bulletin, une ligne par point</span></h2>'
-    +'<div class="fm-l">'+mois.map(k=>{const v=String(kpiVal('faits.'+k)||'');return '<div class="fm-i"><b>'+esc(typeof bulLib==='function'?bulLib(k):k)+'</b><div class="small">'+(v?esc(v).replace(/\n/g,'<br>'):'<span class="muted">rien de saisi</span>')+'</div><button class="btn btn-ghost btn-sm no-print" onclick="bulEditerFaits(\''+k+'\')">✏️</button></div>'}).join('')+'</div></div>';
+  return '<p class="hint" style="margin:0 0 6px">Affichés en tête du bulletin, une ligne par point.</p>'
+    +'<div class="fm-l">'+mois.map(k=>{const v=String(kpiVal('faits.'+k)||'');return '<div class="fm-i"><b>'+esc(typeof bulLib==='function'?bulLib(k):k)+'</b><div class="small">'+(v?esc(v).replace(/\n/g,'<br>'):'<span class="muted">rien de saisi</span>')+'</div><button class="btn btn-ghost btn-sm no-print" onclick="bulEditerFaits(\''+k+'\')">✏️</button></div>'}).join('')+'</div>';
 }
 function todoVu(k){conf.todoVus=conf.todoVus||{};conf.todoVus[k]=1;saveConfLS();renderTodo()}

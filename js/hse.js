@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.0';   // 09/10/2026 — ex-Reporting HSE R1, désormais zone HSE de l'intranet (hse.html)
+const APP_VERSION = 'V3.3.4';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -200,7 +200,10 @@ function semer(){
 function moisLigne(k,ag){
   const a=(ag===undefined)?agence:ag;
   let m=state.mensuel.find(x=>x.k===k&&(x.agence||'')===a);
-  if(!m){m={k:k,agence:a,mp:0,maj:nowISO()};state.mensuel.push(m)}
+  /* V3.3.4 : une ligne créée juste pour l'affichage porte une date « zéro » : elle ne
+     peut jamais écraser au serveur une vraie ligne qui n'était pas encore arrivée ici.
+     Elle prend une vraie date dès qu'on y saisit quelque chose (majMois). */
+  if(!m){m={k:k,agence:a,mp:0,maj:EPOCH};state.mensuel.push(m)}
   if(m.mp===undefined||m.mp==='')m.mp=0;        // maladies pro : 0 par défaut, chaque mois
   return m;
 }
@@ -230,15 +233,13 @@ function actifs(l){return (l||[]).filter(x=>!x.supprime)}
 let QHP=null, ACC_AUTO='';
 let qhpGroupe=(function(){try{return localStorage.getItem('rep_qhp_groupe')||'secteur'}catch(e){return 'secteur'}})();
 function setQhpGroupe(g){qhpGroupe=(g==='agence')?'agence':'secteur';
-  try{localStorage.setItem('rep_qhp_groupe',qhpGroupe)}catch(e){}renderQhp()}
+  try{localStorage.setItem('rep_qhp_groupe',qhpGroupe)}catch(e){}}
 
 const ECRANS = [
   {id:'v-mensuel',t:'Mensuel',c:'var(--accent)',r:renderMensuel},
   {id:'v-acc',t:'Accidentologie',c:'var(--warn)',r:renderAcc},
-  {id:'v-rem',t:'Remontées',c:'var(--cyan)',r:renderRem},
   {id:'v-se',t:'Santé & Environnement',c:'var(--ok)',r:renderSE},
   {id:'v-flash',t:'Flashs SSE',c:'var(--accent)',r:renderFlash},
-  {id:'v-qhp',t:'Suivi QHP',c:'var(--cyan)',r:renderQhp},
   {id:'v-obj',t:'Objectifs SSE',c:'var(--violet)',r:renderObj}
 ];
 /* ---------- écran de correspondance chantier → agence ----------
@@ -291,7 +292,7 @@ function setChantier(code,nom){
   let c=chantiers().find(x=>netCh(x.nom)===n);
   if(!c){c={nom:nom};chantiers().push(c)}
   c.agence=code;c.supprime=false;c.origine='manuel';c.maj=nowISO();
-  save();ouvrirChantiers();renderAgences();go(vue);syncAuto();
+  save();ouvrirChantiers();rerendre();syncAuto();
 }
 
 function renderAgences(){
@@ -305,13 +306,62 @@ function renderAgences(){
   h+='<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="ouvrirChantiers()">🗺 Chantiers par agence</button>';
   box.innerHTML=h;
 }
-function setAgence(a){agence=a;renderAgences();go(vue)}
+function setAgence(a){agence=a;rendreStable(()=>{renderAgences();rendreVue();banniere()})}
 
 function renderOnglets(){
   document.getElementById('onglets').innerHTML = ECRANS.map(e=>
     '<button class="ong'+(vue===e.id?' on':'')+'" onclick="go(\''+e.id+'\')" style="'+(vue===e.id?'color:#003A6E':'')+'">'+
     '<span class="pt" style="background:'+e.c+';color:'+e.c+'"></span>'+esc(e.t)+'</button>').join('');
 }
+/* V3.3.4 — RE-RENDU STABLE (bugs signalés par le service HSE le 14/10) : chaque saisie
+   redessinait tout l'écran, la synchro automatique 2,5 s plus tard le redessinait
+   encore ET remontait la page en haut ; la case sur laquelle on venait de cliquer
+   disparaissait (d'où « taper plusieurs fois »). Désormais :
+   · le re-rendu garde la case active (et le curseur), le défilement de la page et
+     celui des tableaux ;
+   · il attend que le clic ou la tabulation soit fini (setTimeout 0) ;
+   · la synchro ne redessine jamais pendant qu'on est dans une case : elle note
+     qu'il faudra le faire et le fait quand on quitte les cases ;
+   · seul un changement d'onglet remonte la page en haut. */
+let aRafraichir=false, reRenduPrevu=false;
+function caseActive(){const a=document.activeElement;return (a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest('main'))?a:null}
+function cleCase(el,vueEl){
+  if(!el)return null;
+  if(el.dataset&&el.dataset.cle)return {cle:el.dataset.cle};
+  if(el.id)return {id:el.id};
+  const l=[...vueEl.querySelectorAll('input,select,textarea')];const i=l.indexOf(el);return i>=0?{idx:i}:null;
+}
+function retrouverCase(k,vueEl){
+  if(!k)return null;
+  if(k.cle)return vueEl.querySelector('[data-cle="'+CSS.escape(k.cle)+'"]');
+  if(k.id)return document.getElementById(k.id);
+  return vueEl.querySelectorAll('input,select,textarea')[k.idx]||null;
+}
+function rendreStable(fn){
+  const vueEl=document.getElementById(vue)||document.querySelector('main');
+  const a=caseActive(), k=a?cleCase(a,vueEl):null;
+  let sel=null;try{if(a&&a.selectionStart!=null)sel=[a.selectionStart,a.selectionEnd]}catch(e){}
+  const y=window.scrollY, x=window.scrollX;
+  const sc=[...vueEl.querySelectorAll('.tbl-scroll,.tbl-wrap')].map(e=>[e.scrollLeft,e.scrollTop]);
+  fn();
+  const vueEl2=document.getElementById(vue)||vueEl;
+  [...vueEl2.querySelectorAll('.tbl-scroll,.tbl-wrap')].forEach((e,i)=>{if(sc[i]){e.scrollLeft=sc[i][0];e.scrollTop=sc[i][1]}});
+  window.scrollTo(x,y);
+  const b=retrouverCase(k,vueEl2);
+  if(b){try{b.focus({preventScroll:true});if(sel&&b.setSelectionRange)b.setSelectionRange(sel[0],sel[1])}catch(e){}}
+}
+function rendreVue(){const e=ECRANS.find(x=>x.id===vue);if(e)e.r();else if(vue==='v-reglages')renderReglages()}
+/* après une saisie : on laisse le clic / la tabulation se terminer, puis on redessine en place */
+function rerendre(){
+  if(reRenduPrevu)return;reRenduPrevu=true;
+  setTimeout(()=>{reRenduPrevu=false;rendreStable(()=>{renderAgences();rendreVue();banniere()})},0);
+}
+/* après une synchro : jamais pendant une saisie */
+function rafraichirApresSynchro(){
+  if(caseActive()||document.querySelector('.modal.open')){aRafraichir=true;return}
+  aRafraichir=false;rendreStable(()=>{renderAgences();renderOnglets();rendreVue();banniere()});
+}
+document.addEventListener('focusout',()=>{setTimeout(()=>{if(aRafraichir&&!caseActive()&&!document.querySelector('.modal.open'))rafraichirApresSynchro()},400)});
 function go(v){
   renderAgences();
   vue=v;
@@ -490,7 +540,7 @@ function douteTexte(id){
 function douteVu(id){return (conf.doutesVus||[]).indexOf(id)>=0}
 function marquerDoute(id,vu){
   const l=(conf.doutesVus||[]).filter(x=>x!==id);
-  conf.doutesVus=vu?l.concat([id]):l;saveConf();closeModal();go(vue);
+  conf.doutesVus=vu?l.concat([id]):l;saveConf();closeModal();rerendre();
 }
 function notesDe(ecran){
   if(ecran==='v-mensuel'){
@@ -510,6 +560,7 @@ function htmlNote(nt){
   }
   return h+'</div>';
 }
+const notesOuvertes={};
 function panneauNotes(ecran){
   const l=notesDe(ecran);if(!l.length)return '';
   const ids=[];l.forEach(nt=>{if(nt.doute&&ids.indexOf(nt.doute.id)<0)ids.push(nt.doute.id)});
@@ -522,7 +573,8 @@ function panneauNotes(ecran){
        (vu?'<button class="btn btn-ghost btn-xs" onclick="marquerDoute(\''+id+'\',false)" title="Remettre ce doute en avant">↺</button>'
           :'<button class="btn btn-ghost btn-xs" onclick="marquerDoute(\''+id+'\',true)">✓ Vu</button>')+'</div>';
   });
-  return '<details class="notes"'+(ouverts?' open':'')+'><summary>💬 Mes doutes sur ces indicateurs'+
+  /* V3.3.4 : replié par défaut (il mangeait la page) ; l'état ouvert est retenu */
+  return '<details class="notes"'+(notesOuvertes[ecran]?' open':'')+' ontoggle="notesOuvertes[\''+ecran+'\']=this.open"><summary>💬 Mes doutes sur ces indicateurs'+
     (ouverts?' <span class="nb">'+ouverts+' à trancher</span>':(ids.length?' <span class="nb ok">tout vu ✓</span>':' <span class="nb ok">aucun</span>'))+'</summary>'+
     (d?'<div class="dls">'+d+'</div>':'')+
     '<details class="sub"><summary>D’où vient chaque chiffre, depuis quand ('+l.length+' notes)</summary>'+
@@ -602,7 +654,7 @@ function renderMensuel(){
       const titre=def?'Valeur par défaut'+(c.defautDe?' (= '+esc(libCol(c.defautDe))+')':' (ancien reporting 2026)')+' — à vérifier, saisir pour confirmer'
                  :(vide?'À compléter':'');
       if(lecture){h+='<td class="num '+base+(def?' defaut':'')+'">'+(c.gras?'<b>'+fmt(m[c.k])+'</b>':fmt(m[c.k]))+'</td>';return}
-      h+='<td class="'+cls+' '+base+(d?' doute':'')+'"'+dAttr+'><input class="'+cls+(c.gras?' gras':'')+'" inputmode="decimal" title="'+(d?esc(d.txt):titre)+'" value="'+(vide?'':esc(m[c.k]))+'" onchange="majMois(\''+m.k+'\',\''+c.k+'\',this.value)">'+flag+'</td>';
+      h+='<td class="'+cls+' '+base+(d?' doute':'')+'"'+dAttr+'><input class="'+cls+(c.gras?' gras':'')+'" data-cle="'+m.k+'|'+c.k+'" inputmode="decimal" title="'+(d?esc(d.txt):titre)+'" value="'+(vide?'':esc(m[c.k]))+'" onchange="majMois(\''+m.k+'\',\''+c.k+'\',this.value)">'+flag+'</td>';
     });
     h+='</tr>';
   });
@@ -621,7 +673,7 @@ function renderMensuel(){
 /* ---------- valeurs par défaut, à vérifier ----------
    Une case « par défaut » a été remplie par l'outil à partir d'une autre donnée
    (ex. nouveaux arrivants = accueils d'embauchés). Elle reste marquée orange tant
-   que Justin ne l'a pas saisie lui-même — la saisir lève la marque. */
+   que le service HSE ne l'a pas saisie lui-même — la saisir lève la marque. */
 function defautsDe(m){
   if(Array.isArray(m.defauts))return m.defauts;
   if(typeof m.defauts==='string'&&m.defauts){try{const j=JSON.parse(m.defauts);if(Array.isArray(j))return j}catch(e){}}
@@ -643,7 +695,7 @@ function poserDefauts(m){
 }
 /* Remise d'aplomb du mensuel après chargement, synchro ou restauration :
    – une ligne SANS agence d'avant la bascule (ancien format) est versée dans l'agence
-     historique — règle de Justin : l'historique est IDF. Une case vide y reçoit la valeur,
+     historique — règle du service HSE : l'historique est IDF. Une case vide y reçoit la valeur,
      une case déjà renseignée est gardée. Sinon elle s'ajoutait à la ligne IDF dans le Global
      et doublait les chiffres (40 jours d'arrêt en avril au lieu de 20) ;
    – VMS : l'ancienne colonne unique « vms » devient le digital quand ni digital ni papier
@@ -686,7 +738,7 @@ function majMois(k,champ,val){
   totauxMois(m);
   poserDefauts(m);
   m.maj=nowISO();
-  save();renderMensuel();syncAuto();
+  save();rerendre();syncAuto();
 }
 function kpi(v,l,cls){return '<div class="kpi '+(cls||'')+'"><div class="v">'+v+'</div><div class="l">'+esc(l)+'</div></div>'}
 
@@ -783,7 +835,7 @@ function barres(data,coul){
 }
 
 /* ==================== ÉCRAN 3 — REMONTÉES ==================== */
-function renderRem(){
+function renderRem(){if(!document.getElementById('v-rem'))return;
   const rem=filtreAg(actifs(state.remontees),'chantier');
   const trait=rem.filter(r=>/^trait/i.test(r.statut||'')).length;
   const pc=rem.length?Math.round(trait/rem.length*100):0;
@@ -1115,7 +1167,7 @@ function prefillInds(){
     o.maj=nowISO();faits++;lignes+=c.length;
   });
   if(!faits){toast('Rien à pré-remplir : tes objectifs ont déjà leurs indicateurs');return}
-  save();renderObj();syncAuto();
+  save();rerendre();syncAuto();
   toast(faits+' objectif'+(faits>1?'s':'')+' · '+lignes+' indicateur'+(lignes>1?'s':'')+
         (sansCible?' — '+sansCible+' cible'+(sansCible>1?'s':'')+' à compléter':''));
 }
@@ -1201,7 +1253,7 @@ function setInd(id,i,k,v){
   const o=state.objectifs.find(x=>x.id===id);if(!o)return;
   const vs=valsDe(o);if(!vs[String(i)])vs[String(i)]={};
   if(v===''||v===null)delete vs[String(i)][k];else vs[String(i)][k]=Number(v);
-  o.maj=nowISO();save();renderObj();syncAuto();
+  o.maj=nowISO();save();rerendre();syncAuto();
 }
 function supprInd(id,i){
   const o=state.objectifs.find(x=>x.id===id);if(!o)return;
@@ -1209,7 +1261,7 @@ function supprInd(id,i){
   const l=indsDe(o),vs=valsDe(o);
   l.splice(i,1);
   const nv={};Object.keys(vs).forEach(c=>{const j=Number(c);if(j<i)nv[c]=vs[c];else if(j>i)nv[String(j-1)]=vs[c]});
-  o.vals=nv;o.maj=nowISO();save();renderObj();syncAuto();
+  o.vals=nv;o.maj=nowISO();save();rerendre();syncAuto();
 }
 function editInd(id,i){
   const o=state.objectifs.find(x=>x.id===id);if(!o)return;
@@ -1250,7 +1302,7 @@ function enregistrerInd(){
             cible:document.getElementById('i-cible').value};
   if(!nd.lib){toast('Donne un libellé à l’indicateur',true);return}
   if(i>=0)l[i]=nd;else l.push(nd);
-  indEnCours=null;o.maj=nowISO();save();closeModal();renderObj();syncAuto();
+  indEnCours=null;o.maj=nowISO();save();closeModal();rerendre();syncAuto();
 }
 
 function cycleSmiley(id,t){
@@ -1258,7 +1310,7 @@ function cycleSmiley(id,t){
   const ordre=['','😀','🙂','😐','😟'];
   const i=ordre.indexOf(o['s'+t]||'');
   o['s'+t]=ordre[(i+1)%ordre.length];
-  o.maj=nowISO();save();renderObj();syncAuto();
+  o.maj=nowISO();save();rerendre();syncAuto();
 }
 
 /* ==================== FICHES (formulaires) ==================== */
@@ -1446,16 +1498,16 @@ function enregistrerFiche(){
   o.maj=nowISO();
   if(!ficheEnCours)state[F.liste].push(o);
   zoneChoisie='';                       // le choix du formulaire ne doit pas filtrer l'écran
-  save();closeModal();go(vue);toast('Enregistré ✓');syncAuto();
+  save();closeModal();rerendre();toast('Enregistré ✓');syncAuto();
 }
 function supprimerFiche(){
   const F=FICHES[typeFiche];if(!F||!ficheEnCours)return;
   if(!confirm('Supprimer définitivement cet enregistrement ?'))return;
   ficheEnCours.supprime=true;ficheEnCours.maj=nowISO();
   zoneChoisie='';
-  save();closeModal();go(vue);toast('Supprimé');syncAuto();
+  save();closeModal();rerendre();toast('Supprimé');syncAuto();
 }
-function closeModal(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'));
+function closeModal(){document.querySelectorAll('.modal').forEach(m=>m.classList.remove('open'));if(aRafraichir)setTimeout(()=>{if(aRafraichir)rafraichirApresSynchro()},50);
   if(typeFiche==='incident'){zoneChoisie=filtreZoneEcran;const v=document.getElementById('v-acc');if(v&&v.classList.contains('active'))renderAcc()}}
 document.addEventListener('mousedown',e=>{document.querySelectorAll('.modal.open').forEach(m=>{if(e.target===m)closeModal()})});
 
@@ -1496,6 +1548,16 @@ function payloadSync(){
     params:state.params
   }};
 }
+const CLE_COLL={mensuel:m=>m.k+'|'+(m.agence||''),chantiers:c=>c.id||c.nom||c.cle||JSON.stringify(c)};
+function cleColl(k,o){return (CLE_COLL[k]||(o=>o.id))(o)}
+function modifsDepuis(t0){const r={};
+  ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{r[k]=(state[k]||[]).filter(o=>o&&o.maj&&String(o.maj)>=t0).map(o=>JSON.parse(JSON.stringify(o)))});
+  return r}
+function reappliquer(r){let n=0;
+  Object.keys(r).forEach(k=>{if(!Array.isArray(state[k]))state[k]=[];
+    r[k].forEach(o=>{const c=cleColl(k,o);const i=state[k].findIndex(x=>cleColl(k,x)===c);
+      if(i<0){state[k].push(o);n++}else if(!state[k][i].maj||String(state[k][i].maj)<String(o.maj)){state[k][i]=o;n++}})});
+  return n>0}
 function appliquer(d){
   ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{if(Array.isArray(d[k]))state[k]=d[k]});
   if(d.bascule&&/^\d{4}-\d{2}$/.test(d.bascule))BASCULE=d.bascule;
@@ -1515,10 +1577,16 @@ async function syncNow(manuel){
   if(syncEnCours)return false;
   syncEnCours=true;syncEtat('⏳ Synchronisation…');
   try{
+    const t0=nowISO();
     const j=await appel(payloadSync());
+    /* V3.3.4 : ce qui a été saisi PENDANT l'aller-retour (maj ≥ t0) n'est pas dans la
+       réponse du serveur : on le remet par-dessus, sinon la case « perdait » le chiffre
+       et il fallait le retaper. Il repart à la synchro suivante. */
+    const recents=modifsDepuis(t0);
     appliquer(j.data||{});
+    if(reappliquer(recents)){save();syncAuto()}
     conf.dernierSync=nowISO();saveConf();
-    go(vue);
+    rafraichirApresSynchro();                       // V3.3.4 : en place, sans remonter la page
     syncEtat('✅ Synchronisé à '+new Date().toLocaleTimeString('fr-FR').slice(0,5));
     if(manuel)toast('Synchronisé ✓');
     return true;
@@ -1752,6 +1820,16 @@ function collerJSON(){
 /* ==================== DÉMARRAGE ==================== */
 function demarrer(){
   load();
+  /* réservé au service HSE : sans code éditeur (celui de l'intranet), rien ne s'affiche */
+  if(!estBranche()){
+    document.body.classList.add('verrou');
+    document.querySelector('main').innerHTML='<div class="card verrou-carte"><h2>🔒 Réservé au service HSE</h2>'+
+      '<p>Le Reporting n’est accessible qu’aux éditeurs de l’intranet. Ouvre l’intranet avec ton lien éditeur sur cet appareil, puis reviens ici.</p>'+
+      '<a class="btn btn-primary" href="./">← Retour à l’intranet</a></div>';
+    ['onglets','agences'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=''});
+    document.querySelectorAll('.syncpill').forEach(b=>b.style.display='none');
+    return;
+  }
   appliquerLien();
   renderOnglets();
   go('v-acc');
@@ -1764,15 +1842,6 @@ function demarrer(){
 
 window.__LOGO__='img/logo_cdes.png';
 (function(){const lg=document.getElementById('logo');if(lg)lg.src=window.__LOGO__})();
-/* V3 : l'intranet (page parente) pilote l'agence et peut pousser le code éditeur */
-window.addEventListener('message',function(ev){
-  if(ev.origin!==location.origin)return;
-  const d=ev.data||{};
-  if(d.type==='hse-agence'&&typeof d.agence==='string'){const a=AGENCES.some(x=>x.code===d.agence)?d.agence:'';if(a!==agence)setAgence(a);}
-  if(d.type==='hse-conf'&&d.webhook&&d.secret){
-    if(conf.webhook!==d.webhook||conf.secret!==d.secret){conf.webhook=d.webhook;conf.secret=d.secret;if(d.appareil&&!conf.appareil)conf.appareil=d.appareil;saveConf();syncNow(false);}
-  }
-  if(d.type==='hse-sync')syncNow(false);
-});
+/* V3.3.4 : le Reporting est une application à part entière (ouverte depuis la
+   brique « Reporting » de la zone HSE). Plus de cadre, plus de messages. */
 demarrer();
-try{if(window.parent!==window)window.parent.postMessage({type:'hse-pret'},location.origin)}catch(e){}

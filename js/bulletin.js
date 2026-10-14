@@ -1,7 +1,7 @@
 /* ============================================================================
  *  INTRANET HSE — ACCUEIL « BULLETIN HSE »  (V3.2 · 12/10/2026)
  * ----------------------------------------------------------------------------
- *  Reprend la structure du bulletin mensuel de Justin (juin 2026) :
+ *  Reprend la structure du bulletin mensuel du service HSE (juin 2026) :
  *    · le mois en titre ;
  *    · FAITS MARQUANTS HSE (texte libre, saisi par le service HSE) ;
  *    · AT DEPUIS LE 1er JANVIER et NB DE JOURS DEPUIS LE DERNIER AT ;
@@ -16,7 +16,7 @@
  * ========================================================================== */
 const BUL_MOIS_L=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const BUL_MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
-/* Seuils de couleur — PROVISOIRES, calés sur le bulletin de juin 2026 (à confirmer par Justin).
+/* Seuils de couleur — PROVISOIRES, calés sur le bulletin de juin 2026 (à confirmer par le service HSE).
    Chaque entrée : [limite verte incluse, limite orange incluse] ; au-delà = rouge. null = pas de couleur. */
 const BUL_SEUILS={
   accArret:[0,1], joursArret:[0,30], accSans:'zero', benins:'zero', tg:[0.5,1.5], tf:[10,25]
@@ -47,7 +47,7 @@ function bulRecordJours(dates){
   return rec;
 }
 
-/* Pictos et mascotte : les images de Justin (img/picto_faits.png, img/picto_flashs.png,
+/* Pictos et mascotte : les images du service HSE (img/picto_faits.png, img/picto_flashs.png,
    img/mascotte.png) s'affichent si elles sont dans le dépôt ; sinon un emoji prend la place. */
 function bulPicto(nom,emoji){return '<div class="bul-pict"><img src="img/'+nom+'.png" alt="" onload="this.nextElementSibling.style.display=\'none\'" onerror="this.remove()"><span>'+emoji+'</span></div>'}
 /* V3.3 paquet 2 : vue Mois / Année, tendances, « Mon agence », podium des conducteurs, PDF */
@@ -61,7 +61,7 @@ function bulTend(cur,prev,hausseBonne,unite){
 }
 let bulSnap=null;
 /* V3.3.2 — PDF DU BULLETIN : plus une impression de l'écran, mais UNE PAGE A4 dessinée
-   comme le bulletin mensuel de Justin : bandeau (logo, BULLETIN HSE, mois, agence,
+   comme le bulletin mensuel du service HSE : bandeau (logo, BULLETIN HSE, mois, agence,
    mascotte) · Faits marquants · deux gros chiffres AT · tableau Reporting N-1 / N
    (CDES / Intérim, cases rouge / orange / vert) · Vigiminutes vs objectif avec le total
    « N Vigiminutes et N remontées » · Flashs mensuels · ligne QHP / remontées / arrivants.
@@ -141,7 +141,9 @@ function renderBulletin(){
   if(bilanP){
     const c=bilanP.cdes||{}, hP=Number(c.heures)||0;
     cdes.P={accArret:Number(c.accArret)||0,joursArret:Number(c.joursArret)||0,accSans:Number(c.accSans)||0,benins:Number(c.benins)||0,
-      tg:hP?(Number(c.joursArret)||0)*1000/hP:null, tf:hP?(Number(c.accArret)||0)*1e6/hP:null, dispo:true, saisi:true};
+      /* V3.3.4 : Tg / Tf tapés dans le bilan font foi ; sinon calcul depuis les heures */
+      tg:(c.tg!==undefined&&c.tg!==''&&!isNaN(Number(c.tg)))?Number(c.tg):(hP?(Number(c.joursArret)||0)*1000/hP:null),
+      tf:(c.tf!==undefined&&c.tf!==''&&!isNaN(Number(c.tf)))?Number(c.tf):(hP?(Number(c.accArret)||0)*1e6/hP:null), dispo:true, saisi:true};
     if(bilanP.interim){const i=bilanP.interim;intP={accArret:Number(i.accArret)||0,joursArret:Number(i.joursArret)||0,accSans:Number(i.accSans)||0,benins:Number(i.benins)||0,trajet:Number(i.trajet)||0};interimDispo=true}
   }
   const js=joursSans(), da=dernierArret(), rec=bulRecordJours(rep.atArretDates);

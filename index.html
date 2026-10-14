@@ -64,11 +64,10 @@
   <section class="view" id="v-rem"></section>
   <section class="view" id="v-qhp"></section>
   <section class="view" id="v-retex"></section>
-  <!-- ZONE HSE (V3) : le Reporting, affiché dans l'intranet. Le cadre n'est chargé
-       que si cet appareil a le code éditeur ; sans lui, l'entrée n'existe pas. -->
+  <!-- ZONE HSE (V3.3.4) : des briques. Le Reporting s'ouvre dans son propre onglet
+       (hse.html) ; l'entrée n'existe que sur un appareil qui a le code éditeur. -->
   <section class="view" id="v-hse">
     <div id="hse-todo"></div>
-    <iframe id="hse-frame" title="Zone HSE — saisie et analyse" loading="lazy"></iframe>
   </section>
   <section class="view" id="v-modeop">
     <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
@@ -137,7 +136,7 @@
       <label class="f">Mot de passe <span class="muted" style="font-weight:400">— fabriqué par le script, à coller une seule fois</span></label>
       <input type="password" id="sy-secret" placeholder="donné par initialiser() dans le journal Apps Script" autocomplete="new-password">
       <label class="f">Nom de cet appareil (pour le journal)</label>
-      <input type="text" id="sy-appareil" placeholder="Ex. PC Justin">
+      <input type="text" id="sy-appareil" placeholder="Ex. PC bureau">
       <div class="row" style="margin-top:10px">
         <button class="btn btn-ghost grow" onclick="testerWebhook()">🔌 Tester la connexion</button>
         <button class="btn btn-primary grow" onclick="saveSync()">💾 Enregistrer</button></div>
@@ -174,7 +173,7 @@
 </div></div>
 
 
-<!-- V3.3.2 Terrain : UN SEUL bouton « Déclarer » (retour de Justin) — le type choisi
+<!-- V3.3.2 Terrain : UN SEUL bouton « Déclarer » (retour du service HSE) — le type choisi
      décide où ça part : situation dangereuse / presqu'AT / PA / BP → REMONTEES
      (même table que les Vigiminutes) ; accident → INCIDENTS (zone HSE, à compléter). -->
 <div class="modal" id="m-declarer"><div class="sheet" style="max-width:600px">

@@ -391,8 +391,6 @@
   header .syncpill{margin-left:6px}
   .bigsec .tsrch{margin-left:auto;max-width:300px;flex:1;letter-spacing:normal;text-transform:none;font-family:"Barlow",Arial;font-size:13.5px;font-weight:500;background:#fff;border:1px solid var(--line);border-radius:11px;padding:8px 12px;color:var(--txt)}
   .bigsec .tsrch:focus{outline:none;border-color:var(--cyan)}
-  #v-hse{padding:0}
-  #hse-frame{display:block;width:100%;border:none;min-height:calc(100vh - 70px);background:transparent}
   @media(max-width:920px){
     header{flex-wrap:wrap;row-gap:8px}
     header .ht p{display:none}
@@ -705,7 +703,29 @@
   .todo-i{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:#f6f9fb;border-left:4px solid #cbd5dd}
   .todo-i.p1{border-left-color:#C22B22;background:#fdf1f0}.todo-i.p2{border-left-color:#E8720C}.todo-i.p3{border-left-color:#1F6FB2}
   .todo-ico{font-size:20px;width:28px;text-align:center}
-  #hse-todo{padding:14px 14px 0}
+  #hse-todo{padding:4px 0 0}
+  /* V3.3.4 — zone HSE en briques */
+  .briques-titre{font-family:"Barlow Condensed",Arial,sans-serif;font-size:22px;font-weight:700;color:#0f2742;margin:0 2px 12px;letter-spacing:.4px}
+  .briques-titre .muted{font-family:"Barlow",Arial,sans-serif;font-size:13px;font-weight:400}
+  .briques{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;align-items:start}
+  .brique{background:#fff;border:1px solid #dbe4ee;border-radius:14px;box-shadow:0 2px 8px rgba(15,45,80,.05);overflow:hidden}
+  .brique>summary,.br-lien{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none;color:#0f2742;text-decoration:none;min-height:74px}
+  .brique>summary::-webkit-details-marker{display:none}
+  .brique>summary:hover,.br-lien:hover{background:#f4f8fc}
+  .br-ico{font-size:24px;width:44px;height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#eef4fb;border:1px solid #dbe4ee}
+  .br-t{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+  .br-t b{font-size:15.5px}
+  .br-r{font-size:12.5px;color:#4c6379;line-height:1.35}
+  .br-r .rouge{color:#C22B22}.br-r .orange{color:#9a5b00}
+  .br-fl{font-size:16px;color:#1F6FB2;transition:transform .2s}
+  .brique[open]{grid-column:1/-1}
+  .brique[open]>summary{border-bottom:1px solid #e3eaf1;background:#f6f9fc}
+  .brique[open]>summary .br-fl{transform:rotate(180deg)}
+  .br-corps{padding:14px 16px 16px}
+  .br-lien{border:1px solid #dbe4ee;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(15,45,80,.05)}
+  #br-reporting{border-color:rgba(31,111,178,.45);background:linear-gradient(135deg,#f1f7fd,#fff)}
+  #br-reporting .br-ico{background:#1F6FB2;border-color:#1F6FB2}
+  .br-lien.off{opacity:.6;border-style:dashed;cursor:default}
   @media(max-width:640px){.rtab td.c-suj{min-width:200px}}
 
   /* ---- V3.3 paquet 2 : tendances, mon agence, podium, impression ---- */
@@ -764,6 +784,9 @@
   .rx-thumb{width:96px;height:72px;border-radius:10px;background:#eef3f8 center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:24px;color:#9fb0c0;transition:opacity .3s}
   .rx-thumb[data-rph]:not(.pret){background-image:linear-gradient(110deg,#eef3f8 30%,#f8fbfe 50%,#eef3f8 70%);background-size:200% 100%;animation:rxshim 1.2s linear infinite}
   @keyframes rxshim{to{background-position:-200% 0}}
+  /* V3.3.5 : photo en échec — on le dit, on ne « charge » plus sans fin */
+  .rx-thumb.ko,.rx-gi.ko{animation:none!important;background-image:none!important;background:#f6f1ea!important;border-style:dashed;cursor:pointer;position:relative}
+  .rx-thumb.ko::after,.rx-gi.ko::after{content:'📷 indisponible ↻';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#9a5b00;text-align:center;padding:4px}
   .rx-nph{position:absolute;right:4px;bottom:4px;font-size:10.5px;font-weight:700;background:rgba(15,39,66,.78);color:#fff;border-radius:6px;padding:1px 5px}
   @media(max-width:980px){
     .rxt-h{display:none}
@@ -887,7 +910,7 @@
   .qhp-foot{display:flex;align-items:center;justify-content:center;gap:12px;margin:18px 0;font-size:15px}.qhp-foot p{margin:0;font-weight:700}
   @media(max-width:820px){.qhp-sections{grid-template-columns:1fr}.qhp-head h2{font-size:26px}}
 
-  /* mascotte dans le bandeau du bulletin (image fournie par Justin le 13/10) */
+  /* mascotte dans le bandeau du bulletin (image fournie par le service HSE le 13/10) */
   .bul-head{position:relative;padding-left:16px}
   .bul-head-masc{height:72px;width:auto;margin:-14px 6px -14px -4px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.25));flex-shrink:0}
   .bul-pict{width:96px;height:96px;background:transparent}
@@ -904,7 +927,7 @@
   @media(max-width:560px){header img.hmasc{display:none}}
   body.affichage .hmasc{display:none}
 
-  /* ---- V3.3.2 : retours esthétiques de Justin ---- */
+  /* ---- V3.3.2 : retours esthétiques du service HSE ---- */
   .bul-decl{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:2px 4px}
   .bul-decl .muted{font-size:12.5px}
   /* V3.3.2 : bouton de déclaration rouge, picto « danger » dessiné (pas d'emoji) */

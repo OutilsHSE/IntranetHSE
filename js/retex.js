@@ -44,16 +44,31 @@ function setRetexFiltre(k,v){retexFiltre[k]=v;renderRetex();if(k==='q'){const e=
 
 /* ---------- photos : vignettes demandées au serveur, gardées en mémoire ---------- */
 const retexImgs={};
-async function retexImg(id,taille){
+/* V3.3.5 : 3 demandes de photo à la fois au plus (le serveur répondait en vrac à 20
+   demandes simultanées) ; un échec n'est PAS gardé en mémoire (on peut réessayer) et
+   la vignette dit pourquoi au lieu de « charger » sans fin. */
+let retexEnCours=0;const retexFile=[];
+function retexSuivant(){while(retexEnCours<3&&retexFile.length){const t=retexFile.shift();retexEnCours++;
+  t().finally(()=>{retexEnCours--;retexSuivant()})}}
+function retexImg(id,taille){
   const k=id+'|'+(taille||'');
   if(retexImgs[k])return retexImgs[k];
-  const p=appel({action:'photo',id:id,taille:taille||''}).then(r=>r&&r.ok&&r.b64?('data:'+(r.mime||'image/jpeg')+';base64,'+r.b64):null).catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return null});
+  const p=new Promise(ok=>{retexFile.push(()=>appel({action:'photo',id:id,taille:taille||''},60000)
+      .then(r=>r&&r.ok&&r.b64?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:(r&&r.erreur)||'réponse vide'})
+      .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return {err:(e&&e.message)||'erreur'}})
+      .then(x=>{if(x.err)delete retexImgs[k];ok(x)}));
+    retexSuivant()});
   retexImgs[k]=p;return p;
 }
 let retexObs=null;
 function retexChargerVignettes(){
   const els=[...document.querySelectorAll('#v-retex [data-rph]:not([data-ok])')];
-  const charge=el=>{el.dataset.ok='1';retexImg(el.dataset.rph,el.dataset.taille||'petit').then(src=>{if(src){el.style.backgroundImage='url("'+src+'")';el.classList.add('pret')}else el.classList.add('ko')})};
+  const charge=el=>{el.dataset.ok='1';el.classList.remove('ko');el.removeAttribute('title');
+    retexImg(el.dataset.rph,el.dataset.taille||'petit').then(x=>{
+      if(x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret')}
+      else{el.classList.add('ko');el.title='Photo indisponible : '+x.err+' — clique pour réessayer';el.dataset.err=x.err;
+        el.addEventListener('click',ev=>{if(!el.classList.contains('ko'))return;ev.stopPropagation();delete el.dataset.ok;charge(el)},{once:true})}
+    })};
   if(!('IntersectionObserver' in window)){els.forEach(charge);return}
   if(!retexObs)retexObs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){retexObs.unobserve(e.target);charge(e.target)}}),{rootMargin:'200px'});
   els.forEach(el=>retexObs.observe(el));
@@ -66,7 +81,7 @@ function retexLbAff(){
   const m=document.getElementById('m-rxphoto'),id=m._ids[m._i],box=document.getElementById('rxlb-img');
   document.getElementById('rxlb-n').textContent=(m._i+1)+' / '+m._ids.length;
   box.innerHTML='<div class="mph-wait">⏳ Chargement de la photo…</div>';
-  retexImg(id,'').then(src=>{if(m._ids[m._i]!==id)return;box.innerHTML=src?'<img src="'+src+'" alt="">':'<div class="mph-err">Photo indisponible.</div>'});
+  retexImg(id,'').then(x=>{if(m._ids[m._i]!==id)return;box.innerHTML=x.src?'<img src="'+x.src+'" alt="">':'<div class="mph-err">Photo indisponible — '+esc(x.err)+'<br><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="retexLbAff()">↻ Réessayer</button></div>'});
 }
 function retexLbPas(d){const m=document.getElementById('m-rxphoto');m._i=(m._i+d+m._ids.length)%m._ids.length;retexLbAff()}
 
@@ -211,7 +226,7 @@ function retexPhotosFormHtml(cle,ids,nouvelles){
 }
 function retexCiblePhotos(cle){if(cle==='g')return retexForm;return retexForm.phases[Number(cle.slice(1))]}
 function retexRetirerPhoto(cle,j,nouvelle){retexFormLire();const c=retexCiblePhotos(cle);(nouvelle?c.nouvelles:c.photos).splice(j,1);retexFormRendu()}
-function retexFormVignettes(){document.querySelectorAll('#m-retex [data-fph]:not([data-ok])').forEach(el=>{el.dataset.ok='1';retexImg(el.dataset.fph,'petit').then(src=>{if(src){el.style.backgroundImage='url("'+src+'")';el.classList.add('pret')}})})}
+function retexFormVignettes(){document.querySelectorAll('#m-retex [data-fph]:not([data-ok])').forEach(el=>{el.dataset.ok='1';retexImg(el.dataset.fph,'petit').then(x=>{if(x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret')}else{el.classList.add('ko');el.title='Photo indisponible : '+x.err}})})}
 /* réduction dans le navigateur : 1 600 px de côté, JPEG 82 % — une photo de téléphone passe de 4-6 Mo à ~300 ko */
 function retexReduire(fichier){
   return new Promise((ok,ko)=>{

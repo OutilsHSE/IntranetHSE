@@ -521,3 +521,37 @@
   .chx .cc{font-size:11px;color:var(--muted);flex:0 0 auto}
   .chx select{flex:0 0 130px;padding:4px 6px;font-size:12.5px}
   .chx.vide select{border-color:var(--accent)}
+
+/* ==== V3.3.4 — Reporting autonome, thème clair corrigé (retours du 14/10) ====
+   Les restes de l'ancien thème sombre rendaient textes et tuiles illisibles
+   (texte blanc sur fond clair, en-têtes bleu sur bleu). Tout est repris ici. */
+.sheet{background:#fff}
+.banner.info{color:var(--cyan)}
+.kpi{background:var(--glass);box-shadow:0 1px 4px rgba(15,45,80,.06)}
+.kpi .v{text-shadow:none}
+.kpi.good .v,.kpi.bad .v,.kpi.mid .v{text-shadow:none}
+.kpi.hero2{background:linear-gradient(135deg,#eef4fb,#fff);border-color:var(--line2)}
+.kpi.hero2 .v{background:none;-webkit-text-fill-color:var(--marine);color:var(--marine);filter:none}
+.tl,.obj{background:var(--glass)}
+.obj .tr{background:var(--glass2)}
+.obj .tr b{color:var(--txt)}
+.chip{background:var(--glass)}
+.chip.on{color:var(--cyan);font-weight:700}
+.p.violet{color:var(--violet)}
+.arbre .x:hover,.plan .x:hover{color:var(--warn)}
+th,table.uni th{background:#e6eef7;color:var(--marine)}
+table.uni td{color:var(--txt)}
+table.uni input{background:#fff;border-color:rgba(31,111,178,.28)}
+/* une seule barre de défilement : celle de la page (plus de hauteur fixe sur les tableaux) */
+.tbl-scroll{max-height:none;overflow-x:auto;overflow-y:visible}
+table.mensuel th.grp{background:#dbe7f4}
+table.mensuel tbody tr:nth-child(even) td:first-child{background:#f2f6fb}
+table.mensuel tbody tr:hover td:first-child{background:#e3edf8}
+table.mensuel td.total b,table.mensuel input.gras{color:var(--marine)}
+.lc.total{border-color:var(--line2);color:var(--marine)}
+.agences .ag{background:#fff}
+.agences .ag-nr{color:var(--mid);border-color:var(--mid);background:var(--mid-bg)}
+nav.tabs{background:rgba(255,255,255,.95)}
+#volet .tile .tn{color:var(--txt)}
+header{flex-wrap:wrap}
+@media print{.retour-intranet{display:none}}

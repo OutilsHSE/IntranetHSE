@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a1830">
-<title>Zone HSE — Intranet CDES</title>
+<meta name="theme-color" content="#003A6E">
+<meta name="robots" content="noindex">
+<title>Reporting HSE — CDES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
@@ -12,32 +13,32 @@
 <script src="js/configuration.js"></script>
 <link rel="stylesheet" href="css/hse.css">
 <style>
-  /* V3 : cette page est affichée DANS l'intranet (cadre de la zone HSE). Le sélecteur du haut de l'intranet choisit l'agence ; les boutons d'ici permettent d'en changer pour la saisie (en Global, le Mensuel est en lecture seule). */
-  header{position:static;padding:8px 14px}
-  header .marque p{display:none}
-  body{padding-bottom:40px;background:transparent}
-  body::before{display:none}
+  /* V3.3.4 : application autonome, ouverte depuis la brique « Reporting » de la zone HSE */
+  .retour-intranet{font-weight:700;text-decoration:none;color:#fff;white-space:nowrap;border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:6px 11px;font-size:13px}
+  .retour-intranet:hover{background:rgba(255,255,255,.14)}
+  header .marque p{color:rgba(255,255,255,.72)}
+  .verrou-carte{max-width:520px;margin:60px auto;text-align:center}
+  .verrou-carte .btn{display:inline-block;margin-top:12px;text-decoration:none}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="marque"><h1>🔒 Zone HSE</h1><p>CDES · saisie et analyse</p></div>
+  <div class="marque"><h1>📊 Reporting HSE</h1><p>CDES · réservé au service HSE</p></div>
   <nav class="onglets no-print" id="onglets"></nav>
-  <div class="agences no-print" id="agences"></div>
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
     <button class="syncpill no-print" id="sync-pill" onclick="syncNow(true)" style="display:none">🔄</button>
     <button class="syncpill no-print" onclick="go('v-reglages')">⚙️</button>
+    <a class="retour-intranet no-print" href="./">← Intranet</a>
   </div>
 </header>
 <main>
+  <div class="agences no-print" id="agences"></div>
   <div id="banniere"></div>
   <section class="view" id="v-mensuel"></section>
   <section class="view" id="v-acc"></section>
-  <section class="view" id="v-rem"></section>
   <section class="view" id="v-se"></section>
   <section class="view" id="v-flash"></section>
-  <section class="view" id="v-qhp"></section>
   <section class="view" id="v-obj"></section>
   <section class="view" id="v-reglages">
     <div class="barre"><h2>⚙️ Réglages</h2></div>
@@ -48,7 +49,7 @@
       <label class="f">Mot de passe éditeur</label>
       <input type="password" id="sy-secret" placeholder="donné par initialiser()" autocomplete="new-password">
       <label class="f">Nom de cet appareil</label>
-      <input type="text" id="sy-appareil" placeholder="Ex. PC Justin">
+      <input type="text" id="sy-appareil" placeholder="Ex. PC bureau">
       <div class="row" style="margin-top:10px">
         <button class="btn btn-ghost grow" onclick="testerWebhook()">🔌 Tester</button>
         <button class="btn btn-primary grow" onclick="saveSync()">💾 Enregistrer</button></div>
