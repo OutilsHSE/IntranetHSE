@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1830">
+<title>Zone HSE — Intranet CDES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="js/configuration.js"></script>
+<link rel="stylesheet" href="css/hse.css">
+<style>
+  /* V3 : cette page est affichée DANS l'intranet (cadre de la zone HSE). L'agence est choisie en haut de l'intranet : les boutons d'agence d'ici sont donc masqués, seuls restent l'alerte « à ventiler » et les chantiers. */
+  header{position:static;padding:8px 14px}
+  header .marque p{display:none}
+  #agences .ag{display:none}
+  body{padding-bottom:40px;background:transparent}
+  body::before{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marque"><h1>🔒 Zone HSE</h1><p>CDES · saisie et analyse</p></div>
+  <nav class="onglets no-print" id="onglets"></nav>
+  <div class="agences no-print" id="agences"></div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <button class="syncpill no-print" id="sync-pill" onclick="syncNow(true)" style="display:none">🔄</button>
+    <button class="syncpill no-print" onclick="go('v-reglages')">⚙️</button>
+  </div>
+</header>
+<main>
+  <div id="banniere"></div>
+  <section class="view" id="v-mensuel"></section>
+  <section class="view" id="v-acc"></section>
+  <section class="view" id="v-rem"></section>
+  <section class="view" id="v-se"></section>
+  <section class="view" id="v-flash"></section>
+  <section class="view" id="v-qhp"></section>
+  <section class="view" id="v-obj"></section>
+  <section class="view" id="v-reglages">
+    <div class="barre"><h2>⚙️ Réglages</h2></div>
+    <div class="card"><h2>🔄 Connexion au classeur</h2>
+      <p class="small muted">Colle l'adresse du déploiement Apps Script « Intranet HSE » (la même que l'intranet). Tant que c'est vide, l'appli travaille sur cet appareil seulement.</p>
+      <label class="f">Adresse du webhook (…/exec)</label>
+      <input type="text" id="sy-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      <label class="f">Mot de passe éditeur</label>
+      <input type="password" id="sy-secret" placeholder="donné par initialiser()" autocomplete="new-password">
+      <label class="f">Nom de cet appareil</label>
+      <input type="text" id="sy-appareil" placeholder="Ex. PC Justin">
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-ghost grow" onclick="testerWebhook()">🔌 Tester</button>
+        <button class="btn btn-primary grow" onclick="saveSync()">💾 Enregistrer</button></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-accent grow" onclick="syncNow(true)">🔄 Synchroniser</button>
+        <button class="btn btn-danger" onclick="oublierSync()">Oublier</button></div>
+      <p class="hint" id="sync-etat"></p>
+    </div>
+    <div id="notes-reglages"></div>
+    <div class="card"><h2>🏅 Certification MASE & divers</h2>
+      <p class="small muted">Ces quelques valeurs changent rarement — elles s'affichent telles quelles sur l'intranet.</p>
+      <div id="params-box"></div>
+    </div>
+    <div class="card"><h2>💾 Données</h2>
+      <div class="row"><button class="btn btn-ghost grow" onclick="exportJSON()">⬇ Sauvegarde</button>
+        <button class="btn btn-ghost grow" onclick="document.getElementById('imp').click()">⬆ Restaurer</button>
+        <button class="btn btn-ghost grow" onclick="collerJSON()" title="Si le fichier ne passe pas : colle son contenu">📋 Coller</button>
+        <input type="file" id="imp" accept="application/json" style="display:none" onchange="importJSON(this)"></div>
+      <p class="hint" id="apropos"></p></div>
+  </section>
+</main>
+
+<div class="modal" id="m-form"><div class="sheet">
+  <div class="grab"></div><h2 id="mf-titre">Fiche</h2>
+  <p class="small muted" id="mf-sous"></p>
+  <div id="mf-corps"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn btn-danger" id="mf-del" onclick="supprimerFiche()" style="display:none">🗑</button>
+    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary grow" onclick="enregistrerFiche()">Enregistrer</button></div>
+</div></div>
+<div class="modal" id="m-ch"><div class="sheet">
+  <div class="grab"></div><h2>🗺 Chantiers → agence</h2>
+  <p class="small muted">Chaque chantier affecté une fois classe toutes ses remontées et ses incidents, aujourd'hui et demain.</p>
+  <div id="mc-corps"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button></div>
+</div></div>
+<div class="modal" id="m-note"><div class="sheet">
+  <div class="grab"></div><h2 id="mn-titre">Indicateur</h2>
+  <p class="small muted">D'où vient ce chiffre, depuis quand, et ce dont je ne suis pas sûr.</p>
+  <div id="mn-corps"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button></div>
+</div></div>
+<div class="modal" id="m-ind"><div class="sheet">
+  <div class="grab"></div><h2 id="mi-titre">Indicateur</h2>
+  <p class="small muted">Saisie mois par mois, bilan par trimestre.</p>
+  <div id="mi-corps"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary grow" onclick="enregistrerInd()">Enregistrer</button></div>
+</div></div>
+<div id="toast"></div>
+
+<script src="js/hse.js"></script>
+</body>
+</html>

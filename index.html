@@ -18,15 +18,25 @@
 <body>
 <header>
   <img id="logo" alt="CDES">
-  <div class="ht"><h1>Intranet HSE</h1><p>Suite des outils HSE — CDES</p></div>
-  <input type="text" id="t-search" class="hsrch no-print" placeholder="🔎 Chercher un outil…" oninput="renderTiles()">
-  <button class="syncpill no-print" id="sync-pill" onclick="syncOuLecture(true)" style="display:none">🔄</button>
+  <div class="ht"><h1>Intranet HSE</h1><p>CDES · outils, indicateurs et suivi</p></div>
+  <img id="masc" class="hmasc" src="img/mascotte.png" alt="" onerror="this.remove()">
+  <span class="seg agsel no-print" id="pg-agences" title="Agence affichée sur toute la page"></span>
+  <nav id="nav" class="no-print">
+    <button id="nav-hub" class="on" onclick="go('v-hub')">🏠 <span>Accueil</span></button>
+    <button id="nav-arriv" onclick="go('v-arriv')">🎒 <span>Arrivants</span></button>
+    <button id="nav-rem" onclick="go('v-rem')">📬 <span>Remontées</span></button>
+    <button id="nav-qhp" onclick="go('v-qhp')">🎓 <span>QHP</span></button>
+    <button id="nav-modeop" onclick="go('v-modeop')">📚 <span>Documents</span></button>
+    <button id="nav-hse" class="hse" onclick="go('v-hse')" style="display:none">🔒 <span>HSE</span></button>
+    <button id="nav-reglages" onclick="go('v-reglages')" title="Réglages">⚙️</button>
+  </nav>
+  <button class="syncpill no-print" id="sync-pill" onclick="syncOuLecture(true)" style="display:none" title="Synchroniser">🔄</button>
   <button class="syncpill no-print" id="btn-volet" onclick="basculerVolet()">🧰 Outils</button>
-  <button class="syncpill no-print" id="btn-reglages" onclick="go('v-reglages')">⚙️ Réglages</button>
 </header>
 <div class="layout">
 <aside id="volet">
   <button class="vtog no-print" onclick="basculerVolet()" title="Réduire / agrandir le volet">⟨⟩</button>
+  <input type="text" id="t-search" class="vsrch no-print" placeholder="🔎 Chercher un outil…" oninput="renderTiles()">
   <nav id="tiles-box"></nav>
 </aside>
 <div id="backdrop" onclick="document.body.classList.remove('menuopen')"></div>
@@ -34,16 +44,25 @@
   <section class="view active" id="v-hub">
     <div id="dash-banner"></div>
     <div id="ess-box"></div>
+    <div id="dash-detail" style="display:none">
     <div class="bigsec">📊 Tous les indicateurs
       <span class="seg no-print" style="letter-spacing:normal"><button id="pg-mois" onclick="setPeriode('mois')">Mois</button><button id="pg-annee" class="on" onclick="setPeriode('annee')">Année</button></span>
       <select id="pg-choixmois" class="no-print" onchange="setMois(this.value)" style="display:none;letter-spacing:normal"></select>
-      <span class="seg no-print" id="pg-agences" style="letter-spacing:normal;margin-left:10px"></span>
       <span class="no-print" style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
         <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨</button></span>
     </div>
     <div id="dash-body"></div>
+    </div>
   </section>
   <section class="view" id="v-arriv"></section>
+  <section class="view" id="v-rem"></section>
+  <section class="view" id="v-qhp"></section>
+  <!-- ZONE HSE (V3) : le Reporting, affiché dans l'intranet. Le cadre n'est chargé
+       que si cet appareil a le code éditeur ; sans lui, l'entrée n'existe pas. -->
+  <section class="view" id="v-hse">
+    <div id="hse-todo"></div>
+    <iframe id="hse-frame" title="Zone HSE — saisie et analyse" loading="lazy"></iframe>
+  </section>
   <section class="view" id="v-modeop">
     <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
     <div class="card">
@@ -132,7 +151,6 @@
 </main>
 </div>
 
-<!-- modal édition d'un KPI -->
 <!-- modal fiche d'un nouvel arrivant -->
 <!-- ÉCRAN DE DÉVERROUILLAGE — rien ne s'affiche derrière tant qu'il est là -->
 <div id="verrou"><div class="vbox">
@@ -146,6 +164,41 @@
   <p class="vpied">Le mot de passe est vérifié par le serveur : tant qu’il n’est pas bon, aucune donnée n’est envoyée à cet appareil.<br>Tu l’as oublié ? Demande-le au service HSE.</p>
 </div></div>
 
+
+<!-- V3.3 Terrain : signaler, pré-déclarer, action sur une remontée -->
+<div class="modal" id="m-signal"><div class="sheet" style="max-width:600px">
+  <div class="grab"></div><h2>⚡ Signaler</h2>
+  <p class="small muted">Pour les encadrants : une situation dangereuse, un presqu’accident, une bonne pratique, un point d’amélioration. Trente secondes.</p>
+  <div id="ms-corps"></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="envoyerSignalement()">⚡ Envoyer</button></div>
+</div></div>
+<div class="modal" id="m-predecl"><div class="sheet" style="max-width:600px">
+  <div class="grab"></div><h2>🚨 Pré-déclaration d’accident</h2>
+  <p class="small muted">Six champs, à chaud. Le service HSE complète la fiche ensuite.</p>
+  <div id="mp-corps"></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-danger grow" onclick="envoyerPredeclaration()">🚨 Envoyer au service HSE</button></div>
+</div></div>
+<div class="modal" id="m-remaction"><div class="sheet" style="max-width:560px">
+  <div class="grab"></div><h2>🛠️ Action décidée</h2>
+  <p class="small muted" id="mr-sous"></p>
+  <label class="f">Action</label><input type="text" id="mr-action" placeholder="Ex. Poser un garde-corps, rappel en QHP…">
+  <div class="row"><div class="grow"><label class="f">Qui</label><input type="text" id="mr-qui" placeholder="Ex. chef de chantier, agence NA"></div>
+    <div style="width:170px"><label class="f">Pour le</label><input type="date" id="mr-ech"></div></div>
+  <label class="f">Statut</label><select id="mr-statut"></select>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="enregistrerRemAction()">Enregistrer</button></div>
+</div></div>
+<div class="modal" id="m-qtheme"><div class="sheet" style="max-width:680px">
+  <div class="grab"></div><h2 id="mq-titre-h">Thème QHP</h2>
+  <div class="row"><div class="grow"><label class="f">Titre *</label><input type="text" id="mq-titre" placeholder="Ex. Port des EPI sur le ponton"></div>
+    <div style="width:150px"><label class="f">Mois</label><input type="month" id="mq-mois"></div></div>
+  <label class="f">Lien de la vidéo</label><input type="text" id="mq-video" placeholder="YouTube, Vimeo, SharePoint, Stream… (facultatif)">
+  <label class="f">Lien du flash</label><input type="text" id="mq-flash" placeholder="Lien OneDrive / SharePoint du flash, ou PDF (facultatif)">
+  <label class="f">Mot d’intro (facultatif)</label><input type="text" id="mq-note" placeholder="Une phrase pour lancer le QHP">
+  <label class="f">Quiz <span class="muted" style="font-weight:400">— une question par bloc : <code>Q:</code> la question, <code>-</code> les réponses, <code>*</code> devant la bonne, <code>E:</code> l’explication</span></label>
+  <textarea id="mq-quiz" rows="9" placeholder="Q: Faut-il un casque sur le ponton ?&#10;- Non&#10;- *Oui, toujours&#10;E: Le casque est obligatoire dès la passerelle.&#10;&#10;Q: …"></textarea>
+  <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:8px"><input type="checkbox" id="mq-actif" checked> <span>Visible par tous (décoche pour préparer le thème sans le publier)</span></label>
+  <div class="row" style="margin-top:14px"><button class="btn btn-danger" id="mq-del" onclick="qhpSupprimer()">🗑</button><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="qhpEnregistrer()">Enregistrer</button></div>
+</div></div>
 <div class="modal" id="m-arriv"><div class="sheet" style="max-width:640px">
   <div class="grab"></div><h2 id="ma-titre">Nouvel arrivant</h2>
   <p class="small muted">Tout le monde peut compléter cette fiche. Chaque modification est tracée ; seul un appareil éditeur peut retirer une fiche du suivi.</p>
@@ -184,17 +237,6 @@
     <button class="btn btn-primary grow" onclick="saveArrivant()">Enregistrer</button></div>
 </div></div>
 
-<div class="modal" id="m-kpi"><div class="sheet">
-  <div class="grab"></div><h2 id="mk-titre">Mettre à jour</h2>
-  <p class="small muted" id="mk-sous"></p>
-  <label class="f" id="mk-lbl">Valeur</label>
-  <input type="text" id="mk-val" autocomplete="off">
-  <p class="hint" id="mk-hint"></p>
-  <div class="row" style="margin-top:14px">
-    <button class="btn btn-danger" onclick="effacerKpi()">Effacer</button>
-    <button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button>
-    <button class="btn btn-primary grow" onclick="saveKpi()">Enregistrer</button></div>
-</div></div>
 
 <!-- modal édition d'une tuile -->
 <div class="modal" id="m-tuile"><div class="sheet">
@@ -228,5 +270,11 @@
 
 <div id="toast"></div>
 <script src="js/intranet.js"></script>
+<script src="js/bulletin.js"></script>
+<script src="js/terrain.js"></script>
+<script src="js/qhp.js"></script>
+<script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
+if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
+</script>
 </body>
 </html>
