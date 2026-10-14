@@ -1,4 +1,5 @@
-const APP_VERSION='V3.3.2';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
+const APP_VERSION='V3.3.3';   // 14/10/2026 — tuile Banque documentaire branchée sur BANQUE_URL (point vert, Réglages, toute tuile nommée « Banque documentaire »)
+const APP_VERSION_PREC='V3.3.2';   // 14/10/2026 — retours de Justin : un bouton Déclarer, menu de jalon, carte AT claire, conducteur de travaux, faits marquants en zone HSE
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -432,8 +433,13 @@ const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" s
 function outilsTries(){return state.outils.filter(o=>!o.supprime).sort((a,b)=>(a.ordre||0)-(b.ordre||0))}
 function iconeHtml(o){const s=ICONES[o.id];return '<span class="ti'+(s?'':' emo')+'">'+(s||esc(o.ico||'🧰'))+'</span>'}
 const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Outils service HSE':'#2E86C8'};
+/* V3.3.3 : la banque est un ÉCRAN de l'intranet, pas un outil externe. Sa tuile
+   est reconnue par son id d'origine OU par son nom (une tuile recréée à la main
+   s'appelle « Banque documentaire » mais n'a pas l'id modeop), et elle est
+   « branchée » (point vert) dès que config.js porte une BANQUE_URL. */
+function estTuileBanque(o){return !!o&&(o.id==='modeop'||/banque\s+documentaire/i.test(String(o.nom||'')))}
 function tuileHtml(o){
-  if(o.id==='modeop')return '<div class="tile" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';
+  if(estTuileBanque(o)&&!(o.links||[]).some(l=>l&&l.u)&&!o.url)return '<div class="tile'+(banqueUrl()?' branche':'')+'" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires'+(banqueUrl()?' (service branché)':' (service pas encore branché : BANQUE_URL dans config.js)')+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';
   const liens=(o.links||[]).filter(l=>l&&l.u);
   if(liens.length)return '<div class="tile menu" onclick="openLiens(\''+o.id+'\')" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span><span class="men">▾ '+liens.length+'</span></div>';
   const u=lienOutil(o);   // V28 : le lien de branchement reçu du serveur l'emporte sur l'adresse nue
@@ -1860,7 +1866,7 @@ function renderReglages(){
   const list=outilsTries();
   box.innerHTML=list.map((o,i)=>'<div class="tl'+(o.masque?' masque':'')+'">'+
     '<span class="ti2">'+(ICONES[o.id]||esc(o.ico||'🧰'))+'</span>'+
-    '<span class="n2"><b>'+esc(o.nom)+(o.hse?' <span class="pill mid">HSE</span>':'')+(o.masque?' <span class="pill n">masqué</span>':'')+'</b><span>'+((o.links&&o.links.length)?('menu · '+o.links.length+' lien'+(o.links.length>1?'s':'')):(o.url?esc(o.url):'⚠ lien à renseigner'))+'</span></span>'+
+    '<span class="n2"><b>'+esc(o.nom)+(o.hse?' <span class="pill mid">HSE</span>':'')+(o.masque?' <span class="pill n">masqué</span>':'')+'</b><span>'+((o.links&&o.links.length)?('menu · '+o.links.length+' lien'+(o.links.length>1?'s':'')):(o.url?esc(o.url):(estTuileBanque(o)?(banqueUrl()?'✅ écran intégré · service branché (config.js)':'⚠ écran intégré · BANQUE_URL vide dans config.js'):'⚠ lien à renseigner')))+'</span></span>'+
     '<button title="Monter" onclick="bougeTuile(\''+o.id+'\',-1)">▲</button>'+
     '<button title="Descendre" onclick="bougeTuile(\''+o.id+'\',1)">▼</button>'+
     '<button title="'+(o.masque?'Afficher':'Masquer')+'" onclick="masqueTuile(\''+o.id+'\')">'+(o.masque?'👁':'🚫')+'</button>'+
