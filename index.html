@@ -28,7 +28,7 @@
     <button id="nav-qhp" onclick="go('v-qhp')">🎓 <span>QHP</span></button>
     <button id="nav-modeop" onclick="go('v-modeop')">📚 <span>Documents</span></button>
     <button id="nav-hse" class="hse" onclick="go('v-hse')" style="display:none">🔒 <span>HSE</span></button>
-    <button id="nav-reglages" onclick="go('v-reglages')" title="Réglages">⚙️</button>
+    <button id="nav-reglages" onclick="go('v-reglages')" title="Réglages (service HSE)" style="display:none">⚙️</button>
   </nav>
   <button class="syncpill no-print" id="sync-pill" onclick="syncOuLecture(true)" style="display:none" title="Synchroniser">🔄</button>
   <button class="syncpill no-print" id="btn-volet" onclick="basculerVolet()">🧰 Outils</button>
@@ -38,6 +38,12 @@
   <button class="vtog no-print" onclick="basculerVolet()" title="Réduire / agrandir le volet">⟨⟩</button>
   <input type="text" id="t-search" class="vsrch no-print" placeholder="🔎 Chercher un outil…" oninput="renderTiles()">
   <nav id="tiles-box"></nav>
+  <!-- V3.3.2 : le ⚙️ n'existe plus pour un lecteur ; ce qui lui sert vraiment est ici -->
+  <div class="vpied-app no-print">
+    <button class="vlock" onclick="verrouillerAppareil()" title="Le mot de passe sera redemandé et les données gardées ici effacées">🔒 Verrouiller cet appareil</button>
+    <label class="vpart" title="Tablette de chantier, PC commun : redemander le mot de passe à chaque ouverture"><input type="checkbox" id="opt-partage-volet" onchange="reglerPartage(this.checked)"> appareil partagé</label>
+    <span class="vver" id="apropos-volet"></span>
+  </div>
 </aside>
 <div id="backdrop" onclick="document.body.classList.remove('menuopen')"></div>
 <main>
@@ -108,14 +114,23 @@
       <button class="btn btn-primary grow" onclick="saveMO()">Enregistrer</button></div>
   </div></div>
   <section class="view" id="v-reglages">
-    <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
-    <div class="card"><h2>🧩 Outils du portail</h2>
-      <p class="small muted">Renseigne les liens, masque ou réordonne les tuiles. Les changements se synchronisent pour tout le monde une fois le webhook branché.</p>
+    <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour à l’accueil</button></div>
+    <!-- V3.3.2 : pour un LECTEUR, les réglages se limitent à son appareil. Tout le reste
+         (outils du portail, synchronisation, partage, sauvegarde) est réservé à l'éditeur (classe ed-only). -->
+    <div class="card"><h2>🔒 Cet appareil</h2>
+      <p class="small muted">Le mot de passe de consultation est vérifié par le serveur ; chacun le tape une fois sur son appareil. Pour le changer, demande au service HSE.</p>
+      <label class="row" style="gap:8px;align-items:center;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="opt-partage" onchange="reglerPartage(this.checked)"> <span>Appareil <b>partagé</b> (tablette de chantier, PC commun) : redemander le mot de passe à chaque ouverture</span></label>
+      <button class="btn btn-ghost btn-block" onclick="verrouillerAppareil()">Verrouiller cet appareil</button>
+      <p class="hint">À faire sur une tablette de chantier ou un PC partagé qu'on laisse à quelqu'un d'autre : le mot de passe sera redemandé et les données gardées ici seront effacées.</p>
+      <p class="hint" id="apropos">Intranet HSE CDES</p>
+    </div>
+    <div class="card ed-only"><h2>🧩 Outils du portail</h2>
+      <p class="small muted">Renseigne les liens, masque ou réordonne les tuiles. Les changements se synchronisent pour tout le monde.</p>
       <div id="tl-list" style="margin-top:8px"></div>
       <button class="btn btn-ghost btn-block" onclick="openTuile()">＋ Ajouter un outil</button>
     </div>
-    <div class="card"><h2>🔄 Synchronisation</h2>
-      <p class="small muted">Colle ici l'adresse du déploiement Apps Script « Intranet HSE ». Tant que ces champs sont vides, la page fonctionne uniquement sur cet appareil.</p>
+    <div class="card ed-only"><h2>🔄 Synchronisation</h2>
+      <p class="small muted">Adresse du déploiement Apps Script « Intranet HSE CDES » et mot de passe éditeur de cet appareil (posés par le lien de branchement).</p>
       <label class="f">Adresse du webhook (…/exec)</label>
       <input type="text" id="sy-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
       <label class="f">Mot de passe <span class="muted" style="font-weight:400">— fabriqué par le script, à coller une seule fois</span></label>
@@ -129,13 +144,6 @@
         <button class="btn btn-accent grow" onclick="syncOuLecture(true)">🔄 Synchroniser maintenant</button>
         <button class="btn btn-danger" onclick="oublierSync()">Oublier</button></div>
       <p class="hint" id="sync-etat"></p>
-      <div style="border-top:1px dashed var(--line);margin-top:12px;padding-top:10px">
-        <h3 style="margin-top:0">🔒 Accès à la consultation</h3>
-        <p class="small muted">Le mot de passe de consultation se pose côté serveur, dans la propriété <b>INTRANET_LECTURE</b> du script — jamais dans cette page ni sur GitHub. Chacun le tape une fois sur son appareil, et c'est fini.</p>
-        <label class="row" style="gap:8px;align-items:center;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="opt-partage" onchange="reglerPartage(this.checked)"> <span>Appareil <b>partagé</b> (tablette de chantier, PC commun) : redemander le mot de passe à chaque ouverture</span></label>
-        <button class="btn btn-ghost btn-block" onclick="verrouillerAppareil()">Verrouiller cet appareil</button>
-        <p class="hint">À faire sur une tablette de chantier ou un PC partagé qu'on laisse à quelqu'un d'autre : le mot de passe sera redemandé et les données gardées ici seront effacées.</p>
-      </div>
       <div id="branchement-box" style="display:none;border-top:1px dashed var(--line);margin-top:12px;padding-top:10px">
         <h3 style="margin-top:0">Partager l'intranet</h3>
         <p class="small muted">Le lien « collègue » donne la lecture (portail + indicateurs). Le lien « éditeur » permet en plus de mettre à jour les chiffres et les tuiles.</p>
@@ -144,9 +152,9 @@
           <button class="btn btn-ghost grow" onclick="copierBranchement()">🛠 Lien éditeur (autre PC)</button></div>
         <p class="hint">Le lien éditeur contient le mot de passe : envoie-le par SMS ou Teams, pas sur un canal public.</p>
       </div></div>
-    <div class="card"><h2>💾 Données</h2>
+    <div class="card ed-only"><h2>💾 Données</h2>
       <div class="row"><button class="btn btn-ghost grow" onclick="exportJSON()">⬇ Sauvegarde</button><button class="btn btn-ghost grow" onclick="document.getElementById('imp').click()">⬆ Restaurer</button><input type="file" id="imp" accept="application/json" style="display:none" onchange="importJSON(this)"></div>
-      <p class="hint" id="apropos">Intranet HSE CDES</p></div>
+      <p class="hint">Copie locale des réglages et des données reçues, pour dépannage. Le classeur Google reste la référence.</p></div>
   </section>
 </main>
 </div>

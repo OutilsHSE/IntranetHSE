@@ -335,7 +335,7 @@
   .hb .hv{width:36px;font-size:13px;font-weight:700;color:var(--txt)}
   /* ---- volet latéral d'outils ---- */
   .layout{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start}
-  aside#volet{position:sticky;top:59px;height:calc(100vh - 59px);overflow-y:auto;overflow-x:hidden;background:linear-gradient(180deg,var(--nuit),#0c1f36);border-right:1px solid rgba(0,0,0,.25);padding:8px 8px 16px;width:256px;transition:width .22s;z-index:15}
+  aside#volet{position:sticky;top:59px;height:calc(100vh - 59px);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;background:linear-gradient(180deg,var(--nuit),#0c1f36);border-right:1px solid rgba(0,0,0,.25);padding:8px 8px 16px;width:256px;transition:width .22s;z-index:15}
   body.voletReduit aside#volet{width:66px}
   .vtog{display:block;margin:0 0 6px auto;background:rgba(140,190,235,.14);border:1px solid var(--line);border-radius:8px;color:var(--cyan);font-size:12px;padding:5px 9px;cursor:pointer;font-family:inherit}
   .vtog:hover{background:rgba(140,190,235,.26)}
@@ -727,6 +727,13 @@
   .bul-pod li:first-child{background:linear-gradient(90deg,#fff7df,transparent);border-radius:10px;font-size:15px}
   .bul-pod .med{font-size:22px;width:30px;text-align:center}.bul-pod .nom{flex:1;font-weight:600}.bul-pod b{color:var(--cyan)}
   @media(max-width:1100px){.bul-podium{grid-column:span 6}.bul-ag3{grid-template-columns:1fr}}
+  .ed-only{display:none}body.est-editeur .ed-only{display:block}
+  .vpied-app{margin-top:auto;padding:12px 14px 14px;border-top:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(255,255,255,.6)}
+  .vpied-app .vlock{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#dfe9f3;border-radius:9px;padding:7px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;text-align:left}
+  .vpied-app .vlock:hover{background:rgba(255,255,255,.12)}
+  .vpied-app .vpart{display:flex;align-items:center;gap:6px;cursor:pointer}
+  .vpied-app .vver{font-size:10.5px;color:rgba(255,255,255,.35)}
+  body.voletReduit .vpied-app .vpart,body.voletReduit .vpied-app .vver{display:none}body.voletReduit .vpied-app .vlock{font-size:0;padding:7px;text-align:center}body.voletReduit .vpied-app .vlock::before{content:'🔒';font-size:14px}
   .rphoto{padding:2px 7px;margin-left:4px;vertical-align:middle}
   .mph-item{margin-bottom:10px;text-align:center}.mph-item img{max-width:100%;max-height:70vh;border-radius:10px;border:1px solid var(--line)}
   .mph-wait{padding:30px;color:var(--muted);background:#f6f9fc;border-radius:10px}.mph-err{padding:16px;color:#9a3b2e;background:#fdf0ee;border-radius:10px;font-size:13px}

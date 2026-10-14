@@ -383,7 +383,7 @@ function majBascule(){
 
 /* ==================== NAVIGATION ==================== */
 function go(v){
-  if(v==='v-hse'&&!estEditeur())v='v-hub';               // la zone HSE n'existe que pour l'éditeur
+  if((v==='v-hse'||v==='v-reglages')&&!estEditeur())v='v-hub';   // la zone HSE et les réglages n'existent que pour l'éditeur (V3.3.2)
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));document.getElementById(v).classList.add('active');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.id==='nav-'+v.replace(/^v-/,'')));
   if(v==='v-hub'){renderTiles();renderDash()}
@@ -397,7 +397,14 @@ function go(v){
   majNav();
   window.scrollTo(0,0)}
 /* V3 — barre de navigation : l'entrée HSE n'apparaît qu'avec le code éditeur */
-function majNav(){const b=document.getElementById('nav-hse');if(b)b.style.display=estEditeur()?'':'none'}
+function majNav(){
+  const ed=estEditeur();
+  const b=document.getElementById('nav-hse');if(b)b.style.display=ed?'':'none';
+  const r=document.getElementById('nav-reglages');if(r)r.style.display=ed?'':'none';       // V3.3.2 : plus de ⚙️ pour un lecteur
+  document.body.classList.toggle('est-editeur',ed);
+  const v=document.getElementById('apropos-volet');if(v)v.textContent='Intranet HSE CDES · '+APP_VERSION;
+  const c=document.getElementById('opt-partage-volet');if(c)c.checked=!!conf.partage;
+}
 /* V3 — ZONE HSE : le Reporting (hse.html, même dépôt) affiché dans un cadre.
    Chargé à la première ouverture seulement ; il hérite du code éditeur par le
    stockage local (même origine) et reçoit l'agence choisie en haut de page. */
@@ -1838,6 +1845,7 @@ function barChart(mois){
 
 /* ==================== RÉGLAGES ==================== */
 function renderReglages(){
+  document.body.classList.toggle('est-editeur',estEditeur());
   document.getElementById('sy-url').value=conf.webhook||'';
   document.getElementById('sy-secret').value=conf.secret||'';
   document.getElementById('sy-appareil').value=conf.appareil||'';
@@ -1856,13 +1864,15 @@ function renderReglages(){
     '<button title="'+(o.masque?'Afficher':'Masquer')+'" onclick="masqueTuile(\''+o.id+'\')">'+(o.masque?'👁':'🚫')+'</button>'+
     '<button title="Modifier" onclick="openTuile(\''+o.id+'\')">✏️</button></div>').join('')||'<p class="hint">Aucun outil.</p>'}
 function bougeTuile(id,dir){
+  if(!estEditeur()){toast('Réservé au service HSE',true);return}
   const list=outilsTries();const i=list.findIndex(o=>o.id===id);const j=i+dir;
   if(i<0||j<0||j>=list.length)return;
   const a=list[i],b=list[j];const t=a.ordre;a.ordre=b.ordre;b.ordre=t;a.maj=nowISO();b.maj=nowISO();
   save();renderReglages();renderTiles();syncAuto()}
-function masqueTuile(id){const o=state.outils.find(x=>x.id===id);if(!o)return;o.masque=!o.masque;o.maj=nowISO();save();renderReglages();renderTiles();syncAuto()}
+function masqueTuile(id){if(!estEditeur()){toast('Réservé au service HSE',true);return}const o=state.outils.find(x=>x.id===id);if(!o)return;o.masque=!o.masque;o.maj=nowISO();save();renderReglages();renderTiles();syncAuto()}
 let tuileLiens=[];
 function openTuile(id){
+  if(!estEditeur()){toast('Réservé au service HSE',true);return}
   tuileEnCours=id||null;
   const o=id?state.outils.find(x=>x.id===id):null;
   document.getElementById('mt-titre').textContent=o?'Modifier l’outil':'Nouvel outil';
@@ -2069,8 +2079,8 @@ function appliquerLienBranchement(){
 
 /* ==================== EXPORT / IMPORT ==================== */
 function dl(name,content,type){const b=new Blob([content],{type:type||'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();URL.revokeObjectURL(a.href)}
-function exportJSON(){dl('sauvegarde-intranet-hse-'+todayISO+'.json',JSON.stringify({state,conf:{appareil:conf.appareil}},null,2),'application/json');toast('Sauvegarde téléchargée')}
-function importJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(!j.state)throw 0;if(!confirm('Remplacer les données actuelles ?'))return;state=Object.assign({outils:[],kpi:{},kpiMaj:{},tombOutils:{}},j.state);save();renderReglages();renderTiles();toast('Restauré ✓')}catch(e){toast('Fichier invalide',true)}};r.readAsText(f);inp.value=''}
+function exportJSON(){if(!estEditeur()){toast('Réservé au service HSE',true);return}dl('sauvegarde-intranet-hse-'+todayISO+'.json',JSON.stringify({state,conf:{appareil:conf.appareil}},null,2),'application/json');toast('Sauvegarde téléchargée')}
+function importJSON(inp){if(!estEditeur()){toast('Réservé au service HSE',true);inp.value='';return}const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(!j.state)throw 0;if(!confirm('Remplacer les données actuelles ?'))return;state=Object.assign({outils:[],kpi:{},kpiMaj:{},tombOutils:{}},j.state);save();renderReglages();renderTiles();toast('Restauré ✓')}catch(e){toast('Fichier invalide',true)}};r.readAsText(f);inp.value=''}
 
 /* ==================== LE VERROU DE CONSULTATION ======================
  * Ce qui protège vraiment les données, c'est le SERVEUR : tant qu'il n'a pas le
@@ -2106,6 +2116,7 @@ function verrouExpire(){
 /* Réglages ▸ « appareil partagé » */
 function reglerPartage(on){
   conf.partage=!!on;saveConfLS();
+  ['opt-partage','opt-partage-volet'].forEach(id=>{const e=document.getElementById(id);if(e)e.checked=!!on});
   toast(on?'Appareil partagé : le mot de passe sera demandé à chaque ouverture.':'Appareil personnel : le mot de passe reste mémorisé.');
 }
 /* Renvoie 'ok' · 'refus' (mot de passe faux) · 'reseau' (serveur injoignable). */
