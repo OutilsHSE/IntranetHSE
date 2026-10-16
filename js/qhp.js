@@ -58,6 +58,13 @@ function flashParId(id){id=String(id);return banqueFlashs().find(x=>String(x.id)
 function enrichissement(d){const l=qhpThemes(),id=String(d.id);
   return l.find(t=>t.banque&&String(t.banque)===id)||l.find(t=>t.flash&&d.url&&t.flash===d.url)
     ||l.find(t=>!t.banque&&t.fichier&&d.fichier&&flNomNet(t.fichier)===flNomNet(d.fichier))||null}   // V3.9.4 : image déposée avant que la banque connaisse le flash
+/* V3.10 — IMAGES DIRECTES : l'image d'un flash est affichée depuis Google Drive (drive.google.com/thumbnail),
+   sans passer par le script : pas d'exécution Apps Script, pas d'aller-retour réseau par image, cache du
+   navigateur. Si Google refuse (image pas encore rendue lisible par lien, réseau qui bloque), le <img>
+   échoue et la vignette repasse par le script, comme avant (flImgRepli). */
+function flImgUrl(id,w){return 'https://drive.google.com/thumbnail?id='+encodeURIComponent(String(id))+'&sz=w'+(w||400)}
+function flVigHtml(id){return '<div class="fl-vig" data-fim="'+esc(id)+'"><img src="'+esc(flImgUrl(id,400))+'" alt="" loading="lazy" onload="this.parentNode.classList.add(\'pret\',\'direct\')" onerror="flImgRepli(this)"></div>'}
+function flImgRepli(img){const p=img.parentNode;if(!p)return;img.remove();p.dataset.repli='1';delete p.dataset.ok;p.classList.remove('pret','direct');flChargerImages()}
 function flCouleur(d){return (typeof bqCouleur==='function')?bqCouleur(d):'#1F6FB2'}
 function flDate(d){return (typeof bqDate==='function')?bqDate(d.date):String(d.date||'')}
 function renderQhp(){
@@ -94,7 +101,7 @@ function renderQhp(){
     h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' — '+moisParus.map(m=>esc(qhpMoisLib(m))).join(' et ')+' — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
     h+='<div class="fl-grid" id="fl-derniers">'+derniers.map(d=>{const t=enrichissement(d),c=flCouleur(d);
       return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
-        +(t&&t.image?'<div class="fl-vig" data-fim="'+esc(t.image)+'"></div>':'<div class="fl-vig vide"><span>⚡</span></div>')
+        +(t&&t.image?flVigHtml(t.image):'<div class="fl-vig vide"><span>⚡</span></div>')
         +'<div class="fl-c"><div class="fl-band"><span>'+esc(typeLib(d))+'</span><span>'+esc(flDate(d))+'</span></div>'
         +'<div class="fl-t">'+esc(d.titre||d.fichier||'Flash')+'</div>'
         +'<div class="fl-m">'+(d.secteur&&d.secteur!=='Général'?'<span class="fl-sec">'+esc(d.secteur)+'</span>':'')
@@ -183,7 +190,7 @@ function renderFlashListe(){
   if(!l.length&&iaPrete)h+='<div class="secempty">Aucun flash ne porte ces mots dans son titre.</div>';
   h+='<div class="fl-grid">'+l.map(d=>{const t=enrichissement(d),c=flCouleur(d);
     return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
-      +(t&&t.image?'<div class="fl-vig" data-fim="'+esc(t.image)+'"></div>':'<div class="fl-vig vide"><span>⚡</span></div>')
+      +(t&&t.image?flVigHtml(t.image):'<div class="fl-vig vide"><span>⚡</span></div>')
       +'<div class="fl-c"><div class="fl-band"><span>'+esc(typeLib(d))+'</span><span>'+esc(flDate(d))+'</span></div>'
       +'<div class="fl-t">'+esc(d.titre||d.fichier||'Flash')+'</div>'
       +(d._ia?'<div class="bqia">✨ '+esc(d._ia)+'</div>':'')
@@ -209,14 +216,18 @@ function flChargerImages(){
       retexImg(el.dataset.fim,'petit').then(x=>{if(x&&x.src&&!el.classList.contains('pret')){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret','floue')}});
     }else retexImg(el.dataset.fim,'petit',{bas:!!bas}).then(x=>pose(el,x));
   };
-  const els=[...document.querySelectorAll('#v-qhp [data-fim]:not([data-ok])')];
+  const els=[...document.querySelectorAll('#v-qhp [data-fim]:not([data-ok])')].filter(el=>el.dataset.repli||!el.querySelector('img'));   // V3.10 : les <img> directes se débrouillent seules
   if(!('IntersectionObserver' in window)){els.forEach(charge);return}
   if(!flObs)flObs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){flObs.unobserve(e.target);if(!e.target.dataset.ok)charge(e.target)}}),{rootMargin:'300px'});
   els.forEach(el=>{if(el.classList.contains('fl-grande'))charge(el);else flObs.observe(el)});
   /* V3.9.3 : les cartes hors écran se préchargent en arrière-plan, par lots, 2 s après l'affichage
      (elles finissent dans le cache du navigateur : le défilement et les prochaines visites sont instantanés) */
   if(flPrefetchTimer)clearTimeout(flPrefetchTimer);
-  flPrefetchTimer=setTimeout(()=>{document.querySelectorAll('#v-qhp .fl-vig[data-fim]:not([data-ok])').forEach(el=>{if(flObs)flObs.unobserve(el);charge(el,true)})},2000);
+  flPrefetchTimer=setTimeout(()=>{document.querySelectorAll('#v-qhp .fl-vig[data-fim][data-repli]:not([data-ok])').forEach(el=>{if(flObs)flObs.unobserve(el);charge(el,true)})},2000);
+}
+function flAgrandir(id){
+  const m=document.getElementById('m-rxphoto');if(!m)return;
+  m._ids=[id];m._i=0;m._direct=flImgUrl(id,1600);m.classList.add('open');retexLbAff();
 }
 function qhpOuvrirFlash(id){if(typeof retexViderFile==='function')retexViderFile();qhpFlashOuvert=id;qhpThemeOuvert=null;qhpRep={};renderQhp();window.scrollTo(0,0)}
 function qhpFermerFlash(){qhpFlashOuvert=null;qhpThemeOuvert=null;renderQhp();window.scrollTo(0,0)}
@@ -250,9 +261,9 @@ function renderFlashPage(d,t){
   h+='<div class="fl-scene2'+(aSide?'':' seul')+'">';
   h+='<div class="fl-main">';
   if(t&&t.image){
-    h+='<div class="fl-image fl-grande" data-fim="'+esc(t.image)+'"'+ouvrir+'></div>';
+    h+='<div class="fl-image fl-grande" data-fim="'+esc(t.image)+'"'+ouvrir+'><img src="'+esc(flImgUrl(t.image,1400))+'" alt="" onload="this.parentNode.classList.add(\'pret\',\'direct\')" onerror="flImgRepli(this)"></div>';
     h+='<div class="fl-main-b no-print">'+(url?'<span class="hint">Clique sur l’image pour ouvrir le flash (PDF)</span>':'')+'<span class="grow"></span>'
-      +'<button class="btn btn-ghost btn-sm" onclick="retexLightbox(['+esc(JSON.stringify(t.image))+'],0)" title="Voir l’image en plein écran">🔍 Agrandir</button>'
+      +'<button class="btn btn-ghost btn-sm" data-id="'+esc(t.image)+'" onclick="flAgrandir(this.dataset.id)" title="Voir l’image en plein écran">🔍 Agrandir</button>'
       +(estEditeur()&&d.srcUrl?'<a class="btn btn-ghost btn-sm" href="'+esc(d.srcUrl)+'" target="_blank" rel="noopener">✏️ '+esc((d.srcExt||'PowerPoint').toUpperCase())+' ↗</a>':'')+'</div>';
   }else{
     h+='<div class="fl-poster" style="--c:'+esc(c)+'"'+ouvrir+'><div class="fl-poster-ico">⚡</div><div class="fl-poster-t">'+esc(d.titre||'Flash')+'</div>'

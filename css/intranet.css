@@ -1071,3 +1071,7 @@
 .chrono-tab{width:100%;border-collapse:collapse;margin-top:4px;font-size:10.5px;color:#dbe6f0}.chrono-tab th{text-align:left;font-weight:600;color:#9fb3c8;padding:1px 3px}.chrono-tab td{padding:1px 3px;border-top:1px solid rgba(255,255,255,.08);white-space:nowrap}
 .chrono-tab tr.lent td{color:#ffb4ab}.chrono-tab tr.err td{color:#ff8a80}
 .chrono-vol .hint{color:#9fb3c8}
+/* V3.10 — images directes (Drive) dans les cartes et la page d'un flash */
+.fl-vig{position:relative;overflow:hidden}.fl-vig img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .2s}.fl-vig.pret img{opacity:1}
+.fl-image img{width:100%;height:100%;object-fit:contain;display:block;opacity:0;transition:opacity .2s}.fl-image.pret img{opacity:1}
+.fl-image.direct{animation:none;background-image:none}

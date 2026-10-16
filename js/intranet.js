@@ -1,4 +1,4 @@
-const APP_VERSION='V3.9.6';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.10';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -2167,14 +2167,14 @@ function rafraichirEcranActif(){
     if(act&&act.id==='v-hse'&&typeof renderTodo==='function')renderTodo();
     if(act&&act.id==='v-modeop')renderBanque();if(act&&act.id==='v-retex'&&typeof renderRetex==='function')renderRetex();}catch(e){}
 }
-async function syncOuLecture(manuel){
+async function syncOuLecture(manuel,lectureSeule){
   if(!webhookLecture()){if(manuel)toast('Renseigne d’abord l’adresse du webhook',true);return false}
   if(syncEnCours)return false;
   syncEnCours=true;syncEtat('⏳ Synchronisation…','muted');
   chargement(true);
   try{
     let j;
-    if(conf.webhook&&conf.secret){
+    if(conf.webhook&&conf.secret&&!lectureSeule){
       j=await appel({secret:conf.secret,action:'sync',appareil:conf.appareil||'appareil',
         data:{outils:outilsPayload(),kpi:kpiPayload(),modeop:modeopPayload(),qhpThemes:(typeof qhpThemesPayload==='function'?qhpThemesPayload():[])}})}
     else{j=await appel({action:'lecture',appareil:conf.appareil||'visiteur'})}
@@ -2347,7 +2347,10 @@ function lancerSynchros(){
   if(synchrosLancees||!webhookLecture())return;
   synchrosLancees=true;
   const pill=document.getElementById('sync-pill'); if(pill)pill.style.display='';
-  setTimeout(()=>syncOuLecture(false),50);          // V3.4 : sans attendre
+  /* V3.10 : au démarrage, l'éditeur fait d'abord une LECTURE (légère, ~1 s de script) pour afficher
+     tout de suite, puis sa synchronisation complète 3 s plus tard, en arrière-plan. */
+  if(conf.webhook&&conf.secret){setTimeout(()=>syncOuLecture(false,true),50);setTimeout(()=>syncOuLecture(false),3000)}
+  else setTimeout(()=>syncOuLecture(false),50);          // V3.4 : sans attendre
   setInterval(()=>{if(!document.hidden)syncOuLecture(false)},300000);
   window.addEventListener('online',()=>syncOuLecture(false));
 }

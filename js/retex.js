@@ -133,12 +133,13 @@ function retexChargerVignettes(){
 }
 function retexLightbox(ids,i){
   const m=document.getElementById('m-rxphoto');if(!m)return;
-  m._ids=ids;m._i=i;m.classList.add('open');retexLbAff();
+  m._ids=ids;m._i=i;m._direct='';m.classList.add('open');retexLbAff();
 }
 function retexLbAff(){
   const m=document.getElementById('m-rxphoto'),id=m._ids[m._i],box=document.getElementById('rxlb-img');
   document.getElementById('rxlb-n').textContent=(m._i+1)+' / '+m._ids.length;
   box.innerHTML='<div class="mph-wait">⏳ Chargement de la photo…</div>';
+  if(m._direct){const u=m._direct;m._direct='';box.innerHTML='<img src="'+esc(u)+'" alt="" onerror="retexLbAff()">';return}   // V3.10 : image directe (Drive), repli sur le script si elle échoue
   retexImg(id,'').then(x=>{if(m._ids[m._i]!==id)return;box.innerHTML=x.src?'<img src="'+x.src+'" alt="">':'<div class="mph-err">Photo indisponible — '+esc(x.err)+'<br><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="retexLbAff()">↻ Réessayer</button></div>'});
 }
 function retexLbPas(d){const m=document.getElementById('m-rxphoto');m._i=(m._i+d+m._ids.length)%m._ids.length;retexLbAff()}
