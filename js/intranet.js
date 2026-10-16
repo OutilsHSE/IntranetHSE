@@ -1,4 +1,4 @@
-const APP_VERSION='V3.9.1';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.9.2';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -2263,7 +2263,7 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}saveConfLS()}
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}try{indexedDB.deleteDatabase('ihse_images')}catch(e){}saveConfLS()}   // V3.9.2 : les images gardées dans le navigateur partent avec le verrou
 function verrouExpire(){
   const n=Number(conf.expireJours); if(!(n>0))return false;
   const t=Date.parse(conf.deverrouilleLe||''); if(!isFinite(t))return true;   // déverrouillé avant la V28.3 : on redemande une fois

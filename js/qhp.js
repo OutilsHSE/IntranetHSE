@@ -165,12 +165,25 @@ function renderFlashListe(){
       +(t&&t.video?'<span>🎬</span>':'')+(t&&(t.quiz||[]).length?'<span>❓ '+t.quiz.length+'</span>':'')+'</div></div></div>'}).join('')+'</div>';
   box.innerHTML=h;flChargerImages();
 }
+/* V3.9.2 : les vignettes de la liste ne sont demandées que quand la carte arrive à l'écran
+   (150 flashs = 150 demandes d'un coup, sinon) ; la grande image d'un flash est servie en
+   priorité (file vidée), et sa vignette, déjà connue, s'affiche en attendant. */
+let flObs=null;
 function flChargerImages(){
   if(typeof retexImg!=='function')return;
-  document.querySelectorAll('#v-qhp [data-fim]:not([data-ok])').forEach(el=>{el.dataset.ok='1';
-    retexImg(el.dataset.fim,el.classList.contains('fl-grande')?'':'petit').then(x=>{if(x&&x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret')}else{el.classList.add('ko');el.title='Image indisponible'+(x&&x.err?' : '+x.err:'')}})});
+  const pose=(el,x)=>{if(x&&x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret');el.classList.remove('ko')}else if(!(x&&x.err==='annulé')){el.classList.add('ko');el.title='Image indisponible'+(x&&x.err?' : '+x.err:'')}else delete el.dataset.ok};
+  const charge=el=>{el.dataset.ok='1';
+    if(el.classList.contains('fl-grande')){
+      retexImg(el.dataset.fim,'petit').then(x=>{if(x&&x.src&&!el.classList.contains('pret')){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret','floue')}});
+      retexImg(el.dataset.fim,'').then(x=>{if(x&&x.src){el.classList.remove('floue')}pose(el,x)});
+    }else retexImg(el.dataset.fim,'petit').then(x=>pose(el,x));
+  };
+  const els=[...document.querySelectorAll('#v-qhp [data-fim]:not([data-ok])')];
+  if(!('IntersectionObserver' in window)){els.forEach(charge);return}
+  if(!flObs)flObs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){flObs.unobserve(e.target);if(!e.target.dataset.ok)charge(e.target)}}),{rootMargin:'300px'});
+  els.forEach(el=>{if(el.classList.contains('fl-grande'))charge(el);else flObs.observe(el)});
 }
-function qhpOuvrirFlash(id){qhpFlashOuvert=id;qhpThemeOuvert=null;qhpRep={};renderQhp();window.scrollTo(0,0)}
+function qhpOuvrirFlash(id){if(typeof retexViderFile==='function')retexViderFile();qhpFlashOuvert=id;qhpThemeOuvert=null;qhpRep={};renderQhp();window.scrollTo(0,0)}
 function qhpFermerFlash(){qhpFlashOuvert=null;qhpThemeOuvert=null;renderQhp();window.scrollTo(0,0)}
 function quizHtml(quiz){
   let h='<div class="card qhp-sec qhp-quiz"><h3>❓ Le quiz'+(quiz.length?' <span class="apill">'+quiz.length+' question'+(quiz.length>1?'s':'')+'</span>':'')+'</h3>';

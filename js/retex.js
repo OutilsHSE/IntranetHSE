@@ -46,18 +46,48 @@ function setRetexFiltre(k,v){retexFiltre[k]=v;renderRetex();if(k==='q'){const e=
 const retexImgs={};
 /* V3.3.5 : 3 demandes de photo à la fois au plus (le serveur répondait en vrac à 20
    demandes simultanées) ; un échec n'est PAS gardé en mémoire (on peut réessayer) et
-   la vignette dit pourquoi au lieu de « charger » sans fin. */
+   la vignette dit pourquoi au lieu de « charger » sans fin.
+   V3.9.2 : (1) les images sont aussi gardées dans le navigateur (IndexedDB, 14 jours) :
+   à la deuxième ouverture, les 150 cartes de flashs ne demandent plus rien au serveur ;
+   (2) la file d'attente peut être VIDÉE (retexViderFile) quand on ouvre un flash, pour que
+   sa grande image ne fasse pas la queue derrière 150 vignettes de la liste. */
 let retexEnCours=0;const retexFile=[];
 function retexSuivant(){while(retexEnCours<3&&retexFile.length){const t=retexFile.shift();retexEnCours++;
-  t().finally(()=>{retexEnCours--;retexSuivant()})}}
+  t.go().finally(()=>{retexEnCours--;retexSuivant()})}}
+function retexViderFile(){while(retexFile.length){const t=retexFile.shift();delete retexImgs[t.k];t.fin({err:'annulé'})}}
+/* cache navigateur des images (clé id|taille → data URL) */
+const IMG_CACHE_JOURS=14;
+let imgDbP=null;
+function imgDb(){
+  if(imgDbP)return imgDbP;
+  imgDbP=new Promise(ok=>{try{if(!window.indexedDB){ok(null);return}
+    const r=indexedDB.open('ihse_images',1);
+    r.onupgradeneeded=()=>{r.result.createObjectStore('img')};
+    r.onsuccess=()=>ok(r.result);r.onerror=()=>ok(null);r.onblocked=()=>ok(null)}catch(e){ok(null)}});
+  return imgDbP;
+}
+async function imgCacheLire(k){
+  try{const db=await imgDb();if(!db)return null;
+    return await new Promise(ok=>{const t=db.transaction('img','readonly').objectStore('img').get(k);t.onsuccess=()=>{const v=t.result;
+      if(v&&v.src&&Date.now()-(v.t||0)<IMG_CACHE_JOURS*864e5)ok(v.src);else ok(null)};t.onerror=()=>ok(null)})}catch(e){return null}
+}
+async function imgCacheEcrire(k,src){
+  try{const db=await imgDb();if(!db)return;
+    const t=db.transaction('img','readwrite');t.objectStore('img').put({src,t:Date.now()},k)}catch(e){}
+}
 function retexImg(id,taille){
   const k=id+'|'+(taille||'');
   if(retexImgs[k])return retexImgs[k];
-  const p=new Promise(ok=>{retexFile.push(()=>appel({action:'photo',id:id,taille:taille||''},60000)
-      .then(r=>r&&r.ok&&r.b64?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:(r&&r.erreur)||'réponse vide'})
-      .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return {err:(e&&e.message)||'erreur'}})
-      .then(x=>{if(x.err)delete retexImgs[k];ok(x)}));
-    retexSuivant()});
+  const p=new Promise(ok=>{
+    imgCacheLire(k).then(src=>{
+      if(src){ok({src});return}
+      if(retexImgs[k]!==p){ok({err:'annulé'});return}          // vidée entre-temps
+      retexFile.push({k,fin:ok,go:()=>appel({action:'photo',id:id,taille:taille||''},60000)
+        .then(r=>r&&r.ok&&r.b64?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:(r&&r.erreur)||'réponse vide'})
+        .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return {err:(e&&e.message)||'erreur'}})
+        .then(x=>{if(x.err)delete retexImgs[k];else imgCacheEcrire(k,x.src);ok(x)})});
+      retexSuivant()});
+  });
   retexImgs[k]=p;return p;
 }
 let retexObs=null;
