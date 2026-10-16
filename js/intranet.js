@@ -1,4 +1,4 @@
-const APP_VERSION='V3.8';   // 16/10/2026 — intérimaires (colonnes du mensuel, Tf/Tg intérim, tuiles), seuils de couleur ; + V3.7.1 revue, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.9';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -580,14 +580,18 @@ async function chargerBanque(force){
    choisis, dans l'ordre, avec une courte raison. */
 async function rechercheIA(q,docs){
   return appel({action:'recherche-ia',appareil:conf.appareil||'appareil',data:{q:q,
-    docs:docs.map(d=>({i:d.id,t:d.titre||d.fichier||'',y:bqTypeLib(d),s:d.secteur||'',d:String(d.date||'').slice(0,10),m:d.mots||''}))}},45000);
+    docs:docs.map(d=>({i:d.id,t:d.titre||d.fichier||'',y:bqTypeLib(d),s:d.secteur||'',d:String(d.date||'').slice(0,10),m:d.mots||''}))}},75000);
 }
 let bqIA={q:'',ids:[],pq:{},enCours:false,err:''};
+/* V3.9 — le petit chronomètre des recherches IA (« recherche en cours… 12 s ») */
+let chronoIA=null;
+function chronoIATick(){const els=document.querySelectorAll('[data-chrono]');if(!els.length){clearInterval(chronoIA);chronoIA=null;return}els.forEach(el=>{el.textContent=Math.round((Date.now()-Number(el.dataset.chrono||Date.now()))/1000)+' s'})}
+function chronoIAStart(){if(!chronoIA)chronoIA=setInterval(chronoIATick,1000)}
 async function bqLancerIA(){
   const q=((document.getElementById('bq-q')||{}).value||'').trim();
   if(q.length<3){toast('Écris d’abord ta question (3 lettres au moins)',true);return}
-  bqIA={q:q,ids:[],pq:{},enCours:true,err:''};renderBanque();
-  try{const docs=banqueData().filter(d=>d.famille==='modeop');const r=await rechercheIA(q,docs);bqIA.ids=r.ids||[];bqIA.pq=r.pourquoi||{}}
+  bqIA={q:q,ids:[],pq:{},enCours:true,err:'',debut:Date.now()};renderBanque();chronoIAStart();
+  try{const docs=banqueData().filter(d=>d.famille==='modeop');const r=await rechercheIA(q,docs);bqIA.ids=r.ids||[];bqIA.pq=r.pourquoi||{};bqIA.cache=!!r.cache;bqIA.duree=Math.round((Date.now()-bqIA.debut)/1000)}
   catch(e){bqIA.err=e.message||'erreur'}
   finally{bqIA.enCours=false;renderBanque()}
 }
@@ -622,6 +626,65 @@ function bqSetFam(f){bqFiltre.fam=f;bqFiltre.sec='';renderBanque()}
 function bqSetSec(v){bqFiltre.sec=v;renderBanque()}
 function bqSetAn(v){bqFiltre.an=v;renderBanque()}
 
+/* V3.9 — RECHERCHE ÉLARGIE : un mot proche compte comme le mot lui-même. Trois élargissements,
+   sans IA, instantanés : (1) les SYNONYMES du métier (chute à l'eau ↔ noyade, gilet, ponton…) ;
+   (2) la RACINE du mot (gilets → gilet, élingues → elingu) ; (3) une FAUTE d'une lettre
+   (biodiversité / biodiverstié). Le même moteur sert la banque documentaire et les flashs. */
+const SYNONYMES=[
+  ['chute a l eau','noyade','gilet','gilet de sauvetage','ponton','homme a la mer','berge','passerelle','eau'],
+  ['levage','elingue','elinguage','grue','charge suspendue','treuil','palonnier','manutention mecanique'],
+  ['chaleur','canicule','forte chaleur','coup de chaleur','hydratation','soleil','ete'],
+  ['froid','grand froid','gel','verglas','hypothermie','hiver'],
+  ['electricite','electrique','ligne electrique','arc electrique','consignation','haute tension'],
+  ['bruit','sonore','protection auditive','bouchons','casque anti bruit'],
+  ['epi','equipement de protection','casque','gants','lunettes','chaussures de securite','harnais','gilet'],
+  ['travail en hauteur','hauteur','echelle','echafaudage','harnais','garde corps','chute de hauteur','nacelle'],
+  ['engin','pelle','chargeuse','excavatrice','conduite d engin','vigie','angle mort','recul'],
+  ['circulation','pieton','coactivite','plan de circulation','manoeuvre','angle mort','gilet haute visibilite'],
+  ['amiante','poussiere','silice','fibres','masque','ffp'],
+  ['produit chimique','chimique','fds','hydrocarbure','carburant','deversement','pollution','gasoil','huile'],
+  ['incendie','feu','extincteur','explosion','atex','point chaud','permis feu'],
+  ['biodiversite','environnement','faune','flore','especes','nature','dechets','tri','protegee','nidification'],
+  ['bateau','navire','barge','pousseur','marinier','embarcation','navigation','fluvial','amarrage','bollard','cordage','aussiere','ecluse'],
+  ['drague','dragage','curage','sediments','vase','faucardage','clapet','refoulement'],
+  ['atelier','meule','meulage','soudure','soudage','tronconnage','disqueuse','etabli'],
+  ['accident','presque accident','incident','blessure','premiers secours','sst','secouriste','trousse'],
+  ['tms','troubles musculo','port de charge','posture','dos','manutention manuelle','lombalgie'],
+  ['vigiminute','vigi','remontee','situation dangereuse','bonne pratique'],
+  ['tempete','vent','orage','intemperie','meteo','crue','inondation','vigilance'],
+  ['alcool','drogue','stupefiant','addiction','ethylotest'],
+  ['sous traitant','sous traitance','plan de prevention','pdp','protocole','coactivite','entreprise exterieure'],
+  ['vehicule','conduite','route','trajet','ceinture','telephone au volant','somnolence','permis']];
+function bqRacine(m){m=String(m||'');if(m.length<5)return m;return m.replace(/(aux|eaux|ees|es|s|x|e)$/,'')}
+function bqProche(a,b){                       // une faute d'une lettre (ajout, oubli, remplacement ou inversion), mots d'au moins 5 lettres
+  if(a===b)return true;if(Math.abs(a.length-b.length)>1||a.length<5)return false;
+  let i=0,j=0,d=0;
+  while(i<a.length&&j<b.length){
+    if(a[i]===b[j]){i++;j++;continue}
+    if(++d>1)return false;
+    if(a.length>b.length)i++;else if(b.length>a.length)j++;
+    else if(a[i]===b[j+1]&&a[i+1]===b[j]){i+=2;j+=2}else{i++;j++}
+  }
+  return d+(a.length-i)+(b.length-j)<=1;
+}
+/* les variantes d'un mot tapé : lui-même, sa racine, les synonymes de son groupe */
+function bqVariantes(m){
+  const out=new Set([m]);const r=bqRacine(m);if(r.length>=4)out.add(r);
+  SYNONYMES.forEach(g=>{if(g.some(x=>x===m||(m.length>=4&&(x.indexOf(m)>=0||bqRacine(x)===r))||bqProche(x,m)))g.forEach(x=>out.add(x))});
+  return [...out];
+}
+/* la requête correspond-elle au texte ? rend 0 (non), 1 (mot exact), 2 (par élargissement) */
+function bqCorrespond(mots,foin){
+  if(!mots.length)return 1;
+  if(mots.every(m=>foin.indexOf(m)>=0))return 1;
+  const jetons=foin.split(' ');
+  const ok=mots.every(m=>bqVariantes(m).some(v=>foin.indexOf(v)>=0)||(m.length>=5&&jetons.some(j=>bqProche(m,j))));
+  return ok?2:0;
+}
+/* ce que la recherche a compris, pour le dire à l'écran : « gilet → noyade, ponton… » */
+function bqElargissements(mots){
+  return mots.map(m=>{const v=bqVariantes(m).filter(x=>x!==m&&x!==bqRacine(m)).slice(0,5);return v.length?esc(m)+' → '+v.map(esc).join(', '):''}).filter(Boolean).join(' · ');
+}
 function bqNet(v){return String(v==null?'':v).toLowerCase()
   .replace(/[àâä]/g,'a').replace(/[éèêë]/g,'e').replace(/[îï]/g,'i').replace(/[ôö]/g,'o')
   .replace(/[ûùü]/g,'u').replace(/ç/g,'c').replace(/[’']/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
@@ -660,23 +723,25 @@ function renderBanque(){
   /* V3.5 : résultats de la recherche IA (tant que la question tapée n'a pas changé) */
   const qBrut=((document.getElementById('bq-q')||{}).value||'').trim();
   const iaActive=bqIA.q&&bqIA.q===qBrut&&(bqIA.enCours||bqIA.ids.length||bqIA.err);
-  const list=iaActive?bqIA.ids.map(id=>tous.find(d=>d.id===id)).filter(Boolean).map(d=>Object.assign({},d,{_ia:bqIA.pq[d.id]||''})):tous.filter(d=>{
+  const list=(iaActive&&!bqIA.err)?bqIA.ids.map(id=>tous.find(d=>d.id===id)).filter(Boolean).map(d=>Object.assign({},d,{_ia:bqIA.pq[d.id]||''})):tous.filter(d=>{
     if(bqFiltre.fam&&d.famille!==bqFiltre.fam)return false;
     if(bqFiltre.sec&&bqSecond(d)!==bqFiltre.sec)return false;
     if(bqFiltre.an&&String(d.date||'').slice(0,4)!==bqFiltre.an)return false;
     if(!mots.length)return true;
     const foin=bqNet([d.titre,d.fichier,d.mots,bqSecond(d),BQ_FAMILLES[d.famille]?BQ_FAMILLES[d.famille].lib:'',d.dossier].join(' '));
-    if(mots.every(m=>foin.indexOf(m)>=0))return true;
+    if(bqCorrespond(mots,foin))return true;   // V3.9 : mot exact, synonyme, racine ou faute d'une lettre
     return !!bqTexte.ids[d.id];               // trouvé dans le texte du document
   }).map(d=>{
-    const foin=bqNet([d.titre,d.fichier,d.mots,bqSecond(d)].join(' '));
-    return Object.assign({},d,{_texte:mots.length&&!mots.every(m=>foin.indexOf(m)>=0)});
-  }).sort((a,b)=>(a._texte?1:0)-(b._texte?1:0)
+    const foin=bqNet([d.titre,d.fichier,d.mots,bqSecond(d),BQ_FAMILLES[d.famille]?BQ_FAMILLES[d.famille].lib:'',d.dossier].join(' '));
+    const c=mots.length?bqCorrespond(mots,foin):1;
+    return Object.assign({},d,{_texte:!c,_elargi:c===2});
+  }).sort((a,b)=>((a._texte?2:a._elargi?1:0)-(b._texte?2:b._elargi?1:0))
     ||String(b.date||'').localeCompare(String(a.date||''))
     ||String(a.titre||'').localeCompare(String(b.titre||''),'fr'));
 
   let h='';
-  if(iaActive)h+='<div class="ia-band">✨ Recherche IA : « '+esc(bqIA.q)+' »'+(bqIA.enCours?' — <i>recherche en cours…</i>':bqIA.err?' — ⚠️ '+esc(bqIA.err):' — '+bqIA.ids.length+' document'+(bqIA.ids.length>1?'s':''))+' <button class="btn btn-ghost btn-sm" onclick="bqFinIA()">✕ Revenir à la recherche simple</button></div>';
+  if(iaActive)h+='<div class="ia-band">✨ Recherche IA : « '+esc(bqIA.q)+' »'+(bqIA.enCours?' — <i>recherche en cours… <span data-chrono="'+(bqIA.debut||0)+'">0 s</span></i>':bqIA.err?' — ⚠️ '+esc(bqIA.err):' — '+bqIA.ids.length+' document'+(bqIA.ids.length>1?'s':'')+(bqIA.cache?' <span class="muted">(réponse mémorisée)</span>':bqIA.duree?' <span class="muted">('+bqIA.duree+' s)</span>':''))+' <button class="btn btn-ghost btn-sm" onclick="bqFinIA()">✕ Revenir à la recherche simple</button></div>';
+  else if(mots.length&&list.some(d=>d._elargi)){const el=bqElargissements(mots);if(el)h+='<p class="hint">🔎 Recherche élargie : '+el+'</p>'}
   if(banque.erreur)h+='<div class="secempty" style="border-color:rgba(194,43,34,.4);color:#C22B22">⚠️ '+esc(banque.erreur)+'</div>';
   else if(!banqueUrl())h+='<div class="secempty">🔌 La banque n’est pas encore branchée : l’adresse du service se colle une seule fois dans le fichier <b>config.js</b>, ligne <b>BANQUE_URL</b>. En attendant, seuls les liens ajoutés à la main s’affichent ici.</div>';
   (banque.erreurs||[]).forEach(e=>{h+='<div class="secempty" style="margin-top:8px">⚠️ '+esc(e)+'</div>'});
@@ -1975,7 +2040,7 @@ async function appel(payload,ms){
     const r=await fetch(url,{method:'POST',redirect:'follow',signal:ctrl.signal,
       headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
     const txt=await r.text();
-    let j;try{j=JSON.parse(txt)}catch(e){throw new Error('Réponse inattendue du serveur — vérifie « Qui a accès : Tout le monde » dans le déploiement')}
+    let j;try{j=JSON.parse(txt)}catch(e){throw new Error(diagnosticHtml(txt,r.status))}
     if(!j.ok){const err=new Error(j.erreur||'Erreur serveur');err.verrou=!!j.verrou;throw err}
     return j}
   catch(e){
@@ -1983,6 +2048,19 @@ async function appel(payload,ms){
     if(e instanceof TypeError)throw new Error("Impossible de joindre l'adresse. "+(verifierUrl(url)||'Vérifie ta connexion internet et le déploiement « Tout le monde »'));
     throw e}
   finally{clearTimeout(t)}}
+/* V3.9 — quand le serveur rend une page au lieu d'un JSON, on dit CE QU'IL a rendu :
+   une page d'erreur Apps Script (le script a planté : la ligne est dans Apps Script ▸
+   Exécutions), une page de connexion Google (déploiement pas « Tout le monde »), ou
+   un portail réseau. Le message reste court et ne montre pas le HTML. */
+function diagnosticHtml(txt,status){
+  const t=String(txt||''),bas=t.toLowerCase();
+  const titre=(/<title[^>]*>([^<]{1,120})<\/title>/i.exec(t)||[])[1];
+  if(/accounts\.google\.com|servicelogin|connexion|sign in/i.test(bas)&&/google/.test(bas))return 'Le serveur demande une connexion Google : vérifie « Qui a accès : Tout le monde » dans le déploiement';
+  if(/script\.google\.com|apps script|google apps script|exception|erreur de script|script error|dépassé le temps|exceeded maximum execution/i.test(bas))
+    return 'Le script a rencontré une erreur (page d’erreur Apps Script'+(titre?' : « '+titre.trim()+' »':'')+') — la ligne est dans Apps Script ▸ Exécutions';
+  if(status&&status>=500)return 'Serveur Google indisponible ('+status+'), réessaie dans un instant';
+  return 'Réponse inattendue du serveur'+(titre?' (« '+titre.trim()+' »)':status?' (HTTP '+status+')':'')+' — vérifie « Qui a accès : Tout le monde » dans le déploiement';
+}
 function kpiPayload(){
   const out=[];const vus={};
   Object.keys(state.kpiMaj).forEach(cle=>{out.push({cle,maj:state.kpiMaj[cle],valeur:state.kpi[cle]===undefined?'':state.kpi[cle]});vus[cle]=1});

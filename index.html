@@ -11,9 +11,9 @@
 <!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
      ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
      débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
-<script src="config.js?v=3.8"></script>
-<script src="js/configuration.js?v=3.8"></script>
-<link rel="stylesheet" href="css/intranet.css?v=3.8">
+<script src="config.js?v=3.9"></script>
+<script src="js/configuration.js?v=3.9"></script>
+<link rel="stylesheet" href="css/intranet.css?v=3.9">
 </head>
 <body>
 <header>
@@ -237,10 +237,25 @@
     <label class="btn btn-ghost btn-sm" style="cursor:pointer">📤 Choisir l’image<input type="file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="qhpChoisirImage(this)"></label>
     <button class="btn btn-ghost btn-sm" id="mq-image-del" onclick="qhpRetirerImage()" style="display:none">Retirer</button></div>
   <label class="f">Mot d’intro (facultatif)</label><input type="text" id="mq-note" placeholder="Une phrase pour lancer le QHP">
-  <label class="f">Quiz <span class="muted" style="font-weight:400">— une question par bloc : <code>Q:</code> la question, <code>-</code> les réponses, <code>*</code> devant la bonne, <code>E:</code> l’explication</span></label>
+  <div class="row" style="align-items:flex-end;gap:10px"><label class="f grow">Quiz <span class="muted" style="font-weight:400">— une question par bloc : <code>Q:</code> la question, <code>-</code> les réponses, <code>*</code> devant la bonne, <code>E:</code> l’explication</span></label>
+    <button class="btn btn-accent btn-sm" id="mq-ia" onclick="qhpProposerQuiz()" title="L’IA lit l’image du flash et propose 3 questions techniques — à relire avant d’enregistrer">✨ Proposer un quiz</button></div>
   <textarea id="mq-quiz" rows="9" placeholder="Q: Faut-il un casque sur le ponton ?&#10;- Non&#10;- *Oui, toujours&#10;E: Le casque est obligatoire dès la passerelle.&#10;&#10;Q: …"></textarea>
   <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:8px"><input type="checkbox" id="mq-actif" checked> <span>Visible par tous (décoche pour préparer le thème sans le publier)</span></label>
   <div class="row" style="margin-top:14px"><button class="btn btn-danger" id="mq-del" onclick="qhpSupprimer()">🗑</button><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="qhpEnregistrer()">Enregistrer</button></div>
+</div></div>
+<div class="modal" id="m-oublis"><div class="sheet" style="max-width:1100px">
+  <div class="grab"></div><h2 id="obm-titre">Oublis</h2>
+  <p class="small muted">Un chantier actif = de l’activité ces dernières semaines (Vigiminutes ou QHP). Information suivie par agence, à destination des encadrants.</p>
+  <div id="obm-corps"></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button></div>
+</div></div>
+<div class="modal" id="m-flot"><div class="sheet" style="max-width:760px">
+  <div class="grab"></div><h2>📤 Images des flashs</h2>
+  <p class="small muted">Dépose les <b>PDF des flashs</b> (le dossier SharePoint « Flashs Santé-Sécurité » synchronisé dans ton explorateur) : la première page de chaque PDF devient l’image du flash, au centre de sa page et sur sa carte. Le rapprochement se fait par le nom du fichier ; corrige-le dans la liste si besoin. Des PNG / JPG exportés de PowerPoint conviennent aussi. Rien ne quitte l’intranet : les images sont rangées dans le dossier privé « Flashs images » du Drive.</p>
+  <label class="flot-zone"><b>📂 Choisir les fichiers</b> <span class="muted">(PDF, PNG, JPG — 60 au plus à la fois)</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple style="display:none" onchange="flLotFichiers(this)"></label>
+  <div id="flot-liste" style="margin-top:10px"></div>
+  <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:10px"><input type="checkbox" id="flot-remplacer"> <span>Remplacer l’image des flashs qui en ont déjà une</span></label>
+  <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button><button class="btn btn-primary grow" id="flot-go" onclick="flLotEnvoyer()" disabled>📤 Envoyer</button></div>
 </div></div>
 <div class="modal" id="m-arriv"><div class="sheet" style="max-width:640px">
   <div class="grab"></div><h2 id="ma-titre">Nouvel arrivant</h2>
@@ -312,11 +327,11 @@
 </div></div>
 
 <div id="toast"></div>
-<script src="js/intranet.js?v=3.8"></script>
-<script src="js/bulletin.js?v=3.8"></script>
-<script src="js/terrain.js?v=3.8"></script>
-<script src="js/qhp.js?v=3.8"></script>
-<script src="js/retex.js?v=3.8"></script>
+<script src="js/intranet.js?v=3.9"></script>
+<script src="js/bulletin.js?v=3.9"></script>
+<script src="js/terrain.js?v=3.9"></script>
+<script src="js/qhp.js?v=3.9"></script>
+<script src="js/retex.js?v=3.9"></script>
 <script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 </script>

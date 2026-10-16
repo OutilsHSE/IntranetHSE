@@ -225,7 +225,7 @@ function renderBulletin(){
   h+='<div class="bul-card bul-vigi"><h3>Vigiminutes <span class="bul-obj">objectif : '+objV+' % des Vigi attendues</span>'
     +(mCur.pc!==null&&mCur.pc!==undefined?'<span class="bul-sm" title="'+esc(bulLib(bulMois))+' : '+mCur.pc+' %">'+bulSmiley(mCur.pc,objV)+(function(){const i=moisAn.findIndex(m=>m.k===bulMois);const pv=i>0?moisAn[i-1].pc:null;return bulTend(mCur.pc,pv,true,' pt')})()+'</span>':'')+'</h3>'
     +bulGraphVigi(moisAn,objV)
-    +'<div class="bul-total">'+vRecu.toLocaleString('fr-FR')+' Vigiminute'+(vRecu>1?'s':'')+' et '+remAn.toLocaleString('fr-FR')+' remontée'+(remAn>1?'s':'')+' <span class="muted">depuis janvier</span></div></div>';
+    +'<div class="bul-total">'+vRecu.toLocaleString('fr-FR')+' Vigiminute'+(vRecu>1?'s':'')+' et '+remAn.toLocaleString('fr-FR')+' remontée'+(remAn>1?'s':'')+' <span class="muted">depuis janvier</span>'+(typeof oublisBouton==='function'?oublisBouton('vigi'):'')+'</div></div>';
 
   /* ---- QHP · remontées · arrivants ---- */
   const objQ=(q&&q.objPart)||Number(kpiVal('qhp.objPart'))||80;
@@ -241,7 +241,7 @@ function renderBulletin(){
   h+='<div class="bul-card bul-mini"><div class="bul-mini-ico">🗣️</div><h3>QHP '+esc(bulPeriode==='annee'?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+'</h3>'
     +(qPc!==null?'<div class="bul-big">'+qPc+' %<span class="bul-sm">'+bulSmiley(qPc,objQ)+bulTend(qPc,qPrev,true,' pt')+'</span></div><div class="bul-sub">'+(bulPeriode==='annee'?'en moyenne, ':'')+qVus+' collaborateur'+(qVus>1?'s':'')+' sur '+qEff+' ont participé'+(qNb!==null?' · '+qNb+' QHP réalisé'+(qNb>1?'s':''):'')+'</div>'
       :(Number(rowM.qhpEff)>0?'<div class="bul-big">'+Math.round(Number(rowM.qhpPart)/Number(rowM.qhpEff)*100)+' %<span class="bul-sm">'+bulSmiley(Math.round(Number(rowM.qhpPart)/Number(rowM.qhpEff)*100),objQ)+'</span></div><div class="bul-sub">'+rowM.qhpPart+' / '+rowM.qhpEff+' collaborateurs (reporting)</div>'
-      :'<div class="bul-big muted">—</div><div class="bul-sub">pas encore de QHP ce mois-ci</div>'))+'</div>';
+      :'<div class="bul-big muted">—</div><div class="bul-sub">pas encore de QHP ce mois-ci</div>'))+(typeof oublisBouton==='function'?oublisBouton('qhp'):'')+'</div>';
   let R=rep.remontees;
   if(typeof remontees==='function'){const lr=remontees().filter(r=>!agenceChoisie||(r.agence||'')===agenceChoisie);
     if(lr.length){const tr=lr.filter(r=>!remOuverte(r)).length;R={total:lr.length,traitees:tr,pc:Math.round(tr/lr.length*100),sd:lr.filter(r=>remType(r.type).c==='sd').length}}}

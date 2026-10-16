@@ -997,6 +997,36 @@
 .fl-retenir{margin:0;padding-left:18px;line-height:1.8}
 .mq-image-ap{width:120px;height:68px;border-radius:8px;border:1px dashed #c3d0dc;background:#f6f9fc center/contain no-repeat}
 .mq-image-ap.pret{border-style:solid}
+/* V3.9 — page d'un flash : l'image au centre, la vidéo et le quiz dans des encadrés à droite */
+.fl-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.fl-scene2{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;margin:0 0 16px}
+.fl-scene2.seul{grid-template-columns:minmax(0,1fr);max-width:1000px;margin:0 auto 16px}
+.fl-main{min-width:0}.fl-main .fl-image,.fl-main .fl-poster{cursor:pointer;transition:box-shadow .15s,transform .15s}
+.fl-main .fl-image[role=link]:hover,.fl-main .fl-poster[role=link]:hover{box-shadow:0 14px 36px rgba(15,45,80,.25);transform:translateY(-1px)}
+.fl-main-b{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}.fl-main-b .hint{margin:0}
+.fl-side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.fl-side-card{border:1px solid #dbe4ee;border-radius:14px;padding:14px 16px;box-shadow:0 6px 18px rgba(15,45,80,.08);background:#fff}
+.fl-side-card h3{margin:0 0 10px;font-family:"Barlow Condensed",Arial,sans-serif;font-size:20px;letter-spacing:.3px;color:#0f2742}
+.fl-side-card.vide{background:#f8fbfe;border-style:dashed;box-shadow:none}.fl-side-card.vide p{margin:0}
+.fl-side-card .qhp-vid{margin:0}
+.fl-vidv{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#0f2742;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.fl-vidv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.fl-play{position:relative;width:62px;height:62px;border-radius:50%;background:rgba(194,43,34,.95);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;padding-left:5px;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .15s}
+.fl-vidv:hover .fl-play{transform:scale(1.08)}
+.fl-side .qq-r{flex-direction:column}.fl-side .qq-b{width:100%;text-align:left}
+/* V3.9 — bouton « oublis » sur les cartes Vigiminutes / QHP de l'accueil */
+.ob-btn{display:inline-flex;align-items:center;gap:4px;margin-left:10px;border:1px solid transparent;border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;vertical-align:middle}
+.ob-btn.ko{background:#fdeceb;color:#C22B22;border-color:rgba(194,43,34,.3)}.ob-btn.att{background:#fff4dd;color:#9a5b00;border-color:rgba(230,150,0,.35)}.ob-btn.ok{background:#e8f6ec;color:#1b7a3a;border-color:rgba(27,122,58,.3)}
+.ob-btn:hover{filter:brightness(.96)}
+.bul-mini .ob-btn{margin:8px 0 0}
+/* lot d'images de flashs (éditeur) */
+.flot-zone{border:2px dashed #c3d0dc;border-radius:12px;padding:16px;text-align:center;background:#f6f9fc;cursor:pointer;display:block}
+.flot-zone:hover{border-color:#1F6FB2;background:#eef5fc}
+.flot-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}.flot-tbl th{text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#4c6379;padding:6px 8px;border-bottom:1px solid #dbe4ee}
+.flot-tbl td{padding:6px 8px;border-bottom:1px solid #eef3f8;vertical-align:middle}.flot-tbl td:first-child{display:flex;align-items:center;gap:8px}
+.flot-tbl select{max-width:260px}
+.flot-apercu{width:64px;height:36px;flex:none;border-radius:6px;border:1px solid #dbe4ee;background:#fff center/contain no-repeat}
+@media(max-width:900px){.fl-scene2{grid-template-columns:minmax(0,1fr)}.fl-side .qq-r{flex-direction:row}.fl-side .qq-b{width:auto}}
 @media(max-width:700px){.fl-head h2{font-size:24px}.fl-poster-t{font-size:22px}.ia-recherche{flex-wrap:wrap}}
 
 /* V3.6 — oublis Vigiminutes / QHP */

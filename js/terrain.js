@@ -318,8 +318,34 @@ function resumeOublis(){
   if(attQ)p.push(attQ+' QHP à faire en '+mc);
   return {resume:p.join(' · ')+(agenceChoisie?' · '+esc(agenceChoisie):''),ko:koV+koQ};
 }
-function renderOublisHSE(){
-  const o=state.oublis;
+/* V3.9 — les oublis par famille, pour les cartes de l'accueil : { ko: oublis de la période
+   close, att: à faire sur la période en cours } pour la famille 'vigi' ou 'qhp', sur l'agence choisie */
+function oublisCompteur(fam){
+  const o=state.oublis;if(!oublisUtilisables(o))return null;
+  const l=oublisListe();
+  if(fam==='qhp'){const n=o.mois.length;return {ko:l.filter(c=>etatCase(c.qhp[n-2],c.actifQ[n-2],false)==='ko').length,att:l.filter(c=>etatCase(c.qhp[n-1],c.actifQ[n-1],true)==='att').length,lib:'le mois dernier',libAtt:'ce mois-ci'}}
+  const n=o.semaines.length;return {ko:l.filter(c=>etatCase(c.vigi[n-2],c.actifV[n-2],false)==='ko').length,att:l.filter(c=>etatCase(c.vigi[n-1],c.actifV[n-1],true)==='att').length,lib:'la semaine dernière',libAtt:'cette semaine'};
+}
+/* le bouton posé sur les cartes Vigiminutes et QHP de l'accueil (tout appareil déverrouillé) */
+function oublisBouton(fam){
+  const c=oublisCompteur(fam);if(!c)return '';
+  const cls=c.ko?'ob-btn ko':c.att?'ob-btn att':'ob-btn ok';
+  const txt=c.ko?c.ko+' oubli'+(c.ko>1?'s':'')+' '+c.lib:c.att?c.att+' à faire '+c.libAtt:'✓ à jour';
+  return '<button class="'+cls+' no-print" onclick="event.stopPropagation();oublisOuvrir(\''+fam+'\')" title="Voir les chantiers, par agence">🔎 '+esc(txt)+'</button>';
+}
+let oublisFam='';
+function oublisOuvrir(fam){
+  oublisFam=fam==='qhp'?'qhp':'vigi';oublisTous=false;
+  const m=document.getElementById('m-oublis');if(!m)return;
+  oublisModalRendu();m.classList.add('open');
+}
+function oublisModalRendu(){
+  const t=document.getElementById('obm-titre'),c=document.getElementById('obm-corps');if(!c)return;
+  if(t)t.textContent=(oublisFam==='qhp'?'🗣️ QHP par chantier':'📝 Vigiminutes par chantier')+(agenceChoisie?' — '+agenceChoisie:' — toutes agences');
+  c.innerHTML=renderOublisHSE('modal');
+}
+function renderOublisHSE(cible){
+  const o=state.oublis, dansModal=cible==='modal', rafraichir=dansModal?'oublisModalRendu()':'renderTodo()';
   if(!oublisUtilisables(o))return o&&o.erreur?'<p class="muted">Le calcul des oublis a échoué côté serveur : '+esc(o.erreur)+'. Relance une synchronisation (🔄) ; si ça persiste, le classeur Vigiminutes ou QHP n’est pas lisible.</p>'
     :'<p class="muted">Le suivi arrive à la prochaine synchronisation (bouton 🔄 en haut).</p>';
   const nS=o.semaines.length,nM=o.mois.length;
@@ -329,7 +355,7 @@ function renderOublisHSE(){
   const l=oublisListe().filter(c=>oublisTous||aOubli(c));
   const semLib=s=>s.slice(8,10)+'/'+s.slice(5,7);
   let h='<p class="hint" style="margin:0 0 8px">1 Vigiminute par semaine et 1 QHP par mois sur chaque chantier actif. <span class="ob-ok ob-leg">3</span> fait · <span class="ob-ko ob-leg">✗</span> oubli · <span class="ob-att ob-leg">⏳</span> période en cours · <span class="ob-na ob-leg">·</span> chantier pas actif. Calculé à la synchro'+(o.calculeLe?' · '+esc(frDateCourt(String(o.calculeLe).slice(0,10))):'')+'.</p>'
-    +'<div class="row no-print" style="gap:8px;margin-bottom:8px"><span class="seg"><button class="'+(oublisTous?'':'on')+'" onclick="oublisTous=false;renderTodo()">Chantiers à relancer</button><button class="'+(oublisTous?'on':'')+'" onclick="oublisTous=true;renderTodo()">Tous les chantiers actifs</button></span></div>';
+    +'<div class="row no-print" style="gap:8px;margin-bottom:8px"><span class="seg"><button class="'+(oublisTous?'':'on')+'" onclick="oublisTous=false;'+rafraichir+'">Chantiers à relancer</button><button class="'+(oublisTous?'on':'')+'" onclick="oublisTous=true;'+rafraichir+'">Tous les chantiers actifs</button></span></div>';
   (o.erreurs||[]).forEach(e=>{h+='<div class="secempty" style="margin-bottom:8px">⚠️ '+esc(e)+'</div>'});
   if(!l.length)return h+'<p class="muted">'+(oublisTous?'Aucun chantier actif'+(agenceChoisie?' pour cette agence':'')+'.':'Rien à relancer'+(agenceChoisie?' pour cette agence':'')+' 🎉')+'</p>';
   const ags=[...new Set(l.map(c=>c.agence||''))].sort((a,b)=>(a===''?1:0)-(b===''?1:0)||a.localeCompare(b));
