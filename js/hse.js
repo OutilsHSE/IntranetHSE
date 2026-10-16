@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.9.5';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
+const APP_VERSION = 'V3.9.6';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];

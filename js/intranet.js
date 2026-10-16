@@ -1,4 +1,4 @@
-const APP_VERSION='V3.9.5';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.9.6';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -2045,22 +2045,38 @@ function verifierUrl(u){
   if(!u)return "Renseigne l'adresse du webhook.";
   if(/\/dev\/?$/.test(u))return "Cette adresse finit par /dev : c'est l'adresse de TEST. Il te faut celle qui finit par /exec — Déployer ▸ Gérer les déploiements ▸ copier l'URL de l'application Web.";
   return ''}
+/* V3.9.6 — CHRONOMÈTRE : chaque appel au serveur est noté (action, temps vu par le navigateur,
+   temps réellement passé par le script = « duree » dans la réponse, poids). ⏱ en bas du volet.
+   Quand le navigateur voit 15 s pour un appel que le script a traité en 2 s, le problème est
+   entre le poste et Google (réseau, proxy), pas dans l'intranet. */
+const CHRONO=[];
+function chronoNote(action,ms,serveur,ko,erreur){CHRONO.push({t:new Date(),action,ms,serveur,ko,erreur});if(CHRONO.length>40)CHRONO.shift();try{chronoRendu()}catch(e){}}
+function chronoRendu(){
+  const el=document.getElementById('chrono-vol');if(!el)return;
+  const l=CHRONO.slice(-12).reverse();
+  const lent=CHRONO.filter(c=>c.ms>8000).length;
+  el.innerHTML='<details'+(lent?' open':'')+'><summary title="Temps de chaque appel au serveur : navigateur / script">⏱ Temps de réponse'+(lent?' <b class="rouge">'+lent+' lent'+(lent>1?'s':'')+'</b>':'')+'</summary><table class="chrono-tab"><tr><th>h</th><th>appel</th><th>navigateur</th><th>script</th><th>ko</th></tr>'
+    +l.map(c=>'<tr class="'+(c.erreur?'err':c.ms>8000?'lent':'')+'"><td>'+c.t.toTimeString().slice(0,8)+'</td><td>'+esc(c.action)+'</td><td><b>'+(c.ms/1000).toFixed(1)+' s</b></td><td>'+(c.serveur!=null?(c.serveur/1000).toFixed(1)+' s':'—')+'</td><td>'+(c.ko!=null?c.ko:'')+'</td></tr>').join('')
+    +'</table><p class="hint" style="margin:4px 0 0">Navigateur ≫ script = réseau ou proxy entre ce poste et Google. Copie d’écran à envoyer au service HSE.</p></details>';
+}
 async function appel(payload,ms){
   const url=(payload.action==='lecture'||payload.action==='verrou')?webhookLecture():(conf.webhook||webhookLecture());
   /* Toute requête emporte le mot de passe connu de cet appareil, sauf celles qui
      en portent déjà un (la synchro éditeur, le test de connexion). */
   if(payload.secret===undefined&&conf.lecture)payload=Object.assign({},payload,{secret:conf.lecture});
   const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),ms||45000);
+  const t0=Date.now(), act=String(payload.action||'?');
   try{
     const r=await fetch(url,{method:'POST',redirect:'follow',signal:ctrl.signal,
       headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
     const txt=await r.text();
-    let j;try{j=JSON.parse(txt)}catch(e){throw new Error(diagnosticHtml(txt,r.status))}
+    let j;try{j=JSON.parse(txt)}catch(e){chronoNote(act,Date.now()-t0,null,Math.round(txt.length/1024),'page');throw new Error(diagnosticHtml(txt,r.status))}
+    chronoNote(act,Date.now()-t0,typeof j.duree==='number'?j.duree:null,Math.round(txt.length/1024),j.ok?'':'erreur');
     if(!j.ok){const err=new Error(j.erreur||'Erreur serveur');err.verrou=!!j.verrou;throw err}
     return j}
   catch(e){
-    if(e&&e.name==='AbortError')throw new Error('Le serveur ne répond pas (délai dépassé)');
-    if(e instanceof TypeError)throw new Error("Impossible de joindre l'adresse. "+(verifierUrl(url)||'Vérifie ta connexion internet et le déploiement « Tout le monde »'));
+    if(e&&e.name==='AbortError'){chronoNote(act,Date.now()-t0,null,null,'délai');throw new Error('Le serveur ne répond pas (délai dépassé)')}
+    if(e instanceof TypeError){chronoNote(act,Date.now()-t0,null,null,'injoignable');throw new Error("Impossible de joindre l'adresse. "+(verifierUrl(url)||'Vérifie ta connexion internet et le déploiement « Tout le monde »'))}
     throw e}
   finally{clearTimeout(t)}}
 /* V3.9 — quand le serveur rend une page au lieu d'un JSON, on dit CE QU'IL a rendu :

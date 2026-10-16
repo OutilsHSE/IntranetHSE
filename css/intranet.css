@@ -1066,3 +1066,8 @@
 .mc-cases input,.mc-arr input{width:auto}
 .mc-arr{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f6f9fc;border-radius:10px;padding:8px 10px;margin-top:8px}
 .mc-arr select{width:auto}
+/* V3.9.6 — chronomètre des appels (pied du volet) */
+.chrono-vol{margin-top:8px;font-size:11px;color:#9fb3c8}.chrono-vol summary{cursor:pointer;color:#c9d6e3}.chrono-vol summary .rouge{color:#ff8a80}
+.chrono-tab{width:100%;border-collapse:collapse;margin-top:4px;font-size:10.5px;color:#dbe6f0}.chrono-tab th{text-align:left;font-weight:600;color:#9fb3c8;padding:1px 3px}.chrono-tab td{padding:1px 3px;border-top:1px solid rgba(255,255,255,.08);white-space:nowrap}
+.chrono-tab tr.lent td{color:#ffb4ab}.chrono-tab tr.err td{color:#ff8a80}
+.chrono-vol .hint{color:#9fb3c8}
