@@ -309,7 +309,7 @@ async function qhpEnregistrer(){
   let image=qhpImage.id||'';
   if(qhpImage.nouvelle){
     try{toast('📤 Envoi de l’image du flash…');
-      const r=await appel({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:qhpImage.nouvelle.nom,mime:qhpImage.nouvelle.mime,b64:qhpImage.nouvelle.b64}},90000);
+      const r=await appelRetente({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:qhpImage.nouvelle.nom,mime:qhpImage.nouvelle.mime,b64:qhpImage.nouvelle.b64}},90000);
       if(!r||!r.ok||!r.id)throw new Error((r&&r.erreur)||'image refusée');image=r.id}
     catch(e){toast('Image non envoyée : '+(e.message||'?'),true);return}
   }
@@ -348,12 +348,12 @@ async function qhpProposerQuiz(){
   try{
     if(qhpImage.nouvelle){
       toast('📤 Envoi de l’image du flash…');
-      const r=await appel({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:qhpImage.nouvelle.nom,mime:qhpImage.nouvelle.mime,b64:qhpImage.nouvelle.b64}},90000);
+      const r=await appelRetente({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:qhpImage.nouvelle.nom,mime:qhpImage.nouvelle.mime,b64:qhpImage.nouvelle.b64}},90000);
       if(!r||!r.ok||!r.id)throw new Error((r&&r.erreur)||'image refusée');
       qhpImage={id:r.id,nouvelle:null};qhpImageRendu();
     }
     const t0=Date.now();
-    const r=await appel({secret:conf.secret,action:'flash-quiz',appareil:conf.appareil||'éditeur',data:{image:qhpImage.id,titre:(document.getElementById('mq-titre')||{}).value||''}},90000);
+    const r=await appelRetente({secret:conf.secret,action:'flash-quiz',appareil:conf.appareil||'éditeur',data:{image:qhpImage.id,titre:(document.getElementById('mq-titre')||{}).value||''}},90000);
     if(!r||!r.ok||!r.texte)throw new Error((r&&r.erreur)||'pas de proposition');
     zone.value=r.texte;zone.focus();
     toast('✨ '+(r.quiz||[]).length+' questions proposées en '+Math.round((Date.now()-t0)/1000)+' s — relis, corrige, puis Enregistre');
@@ -424,12 +424,12 @@ async function flPdfPremierePage(fichier){
   const buf=await fichier.arrayBuffer();
   const pdf=await lib.getDocument({data:buf,isEvalSupported:false,disableFontFace:false}).promise;
   const page=await pdf.getPage(1);
-  const v1=page.getViewport({scale:1}),k=Math.min(3,1600/Math.max(v1.width,v1.height)),vp=page.getViewport({scale:k});
+  const v1=page.getViewport({scale:1}),k=Math.min(3,1400/Math.max(v1.width,v1.height)),vp=page.getViewport({scale:k});   // V3.9.1 : 1 400 px suffisent à l'écran, l'envoi est deux fois plus léger
   const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
   const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
   await page.render({canvasContext:x,viewport:vp}).promise;
   try{pdf.destroy()}catch(e){}
-  const src=c.toDataURL('image/jpeg',.85);
+  const src=c.toDataURL('image/jpeg',.78);
   return {src,b64:src.split(',')[1],mime:'image/jpeg',nom:(fichier.name||'flash').replace(/\.[^.]+$/,'')+'.jpg'};
 }
 async function flLotEnvoyer(){
@@ -438,22 +438,27 @@ async function flLotEnvoyer(){
   const todo=flLot.fichiers.filter(f=>f.docId&&f.src&&!f.fait);
   if(!todo.length)return;
   flLot.enCours=true;flLotRendu();
-  let n=0,passes=0;
-  for(const f of todo){
-    const d=banqueFlashs().find(x=>x.id===f.docId);if(!d){f.etat='❌ flash inconnu';continue}
+  let n=0,passes=0,k=0;
+  /* V3.9.1 : trois images partent en même temps (au lieu d'une), et une erreur passagère de
+     Google (« Page introuvable ») est réessayée deux fois avant d'être affichée en ❌ */
+  const uneImage=async f=>{
+    const d=banqueFlashs().find(x=>x.id===f.docId);if(!d){f.etat='❌ flash inconnu';return}
     const t=enrichissement(d);
-    if(t&&t.image&&!remplacer){f.etat='↷ passé (a déjà une image)';f.fait=true;passes++;flLotRendu();continue}
+    if(t&&t.image&&!remplacer){f.etat='↷ passé (a déjà une image)';f.fait=true;passes++;flLotRendu();return}
     f.etat='⏳ envoi…';flLotRendu();
     try{
-      const r=await appel({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:f.nom.replace(/\.[^.]+$/,'')+'.jpg',mime:f.mime,b64:f.b64}},90000);
+      const r=await appelRetente({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:f.nom.replace(/\.[^.]+$/,'')+'.jpg',mime:f.mime,b64:f.b64}},90000,2);
       if(!r||!r.ok||!r.id)throw new Error((r&&r.erreur)||'image refusée');
-      const o=Object.assign({},t||{id:'qt'+Date.now().toString(36)+n,titre:d.titre||d.fichier||'Flash',mois:'',video:'',note:'',quiz:[],actif:true},{maj:nowISO(),banque:d.id,flash:(t&&t.flash)||d.url||'',image:r.id});
+      const o=Object.assign({},t||{id:'qt'+Date.now().toString(36)+(k++),titre:d.titre||d.fichier||'Flash',mois:'',video:'',note:'',quiz:[],actif:true},{maj:nowISO(),banque:d.id,flash:(t&&t.flash)||d.url||'',image:r.id});
       if(!o.titre)o.titre=d.titre||d.fichier||'Flash';
       state.qhpThemes=(state.qhpThemes||[]).filter(x=>x.id!==o.id).concat([o]);save();
       f.etat='✅ envoyée';f.fait=true;n++;
-    }catch(e){f.etat='❌ '+(e.message||'?')}
+    }catch(e){f.etat='❌ '+(e.message||'?')+' — relance « Envoyer » pour réessayer'}
     flLotRendu();
-  }
+  };
+  const file=todo.slice();
+  const ouvrier=async()=>{while(file.length){await uneImage(file.shift())}};
+  await Promise.all([ouvrier(),ouvrier(),ouvrier()]);
   flLot.enCours=false;flLotRendu();
   toast(n+' image'+(n>1?'s':'')+' envoyée'+(n>1?'s':'')+(passes?', '+passes+' passée'+(passes>1?'s':''):'')+' (synchro en cours)');
   if(n&&typeof syncAuto==='function')syncAuto();

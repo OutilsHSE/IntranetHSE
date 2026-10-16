@@ -1,4 +1,4 @@
-const APP_VERSION='V3.9';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.9.1';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -579,7 +579,7 @@ async function chargerBanque(force){
    le serveur de l'intranet interroge l'IA avec sa propre clé et rend les documents
    choisis, dans l'ordre, avec une courte raison. */
 async function rechercheIA(q,docs){
-  return appel({action:'recherche-ia',appareil:conf.appareil||'appareil',data:{q:q,
+  return appelRetente({action:'recherche-ia',appareil:conf.appareil||'appareil',data:{q:q,
     docs:docs.map(d=>({i:d.id,t:d.titre||d.fichier||'',y:bqTypeLib(d),s:d.secteur||'',d:String(d.date||'').slice(0,10),m:d.mots||''}))}},75000);
 }
 let bqIA={q:'',ids:[],pq:{},enCours:false,err:''};
@@ -2058,8 +2058,21 @@ function diagnosticHtml(txt,status){
   if(/accounts\.google\.com|servicelogin|connexion|sign in/i.test(bas)&&/google/.test(bas))return 'Le serveur demande une connexion Google : vérifie « Qui a accès : Tout le monde » dans le déploiement';
   if(/script\.google\.com|apps script|google apps script|exception|erreur de script|script error|dépassé le temps|exceeded maximum execution/i.test(bas))
     return 'Le script a rencontré une erreur (page d’erreur Apps Script'+(titre?' : « '+titre.trim()+' »':'')+') — la ligne est dans Apps Script ▸ Exécutions';
+  if(status===404||/page introuvable|page not found|unable to open the file/i.test(bas))return 'Google a répondu « Page introuvable » (incident passager côté Google : la demande est renvoyée automatiquement)';
   if(status&&status>=500)return 'Serveur Google indisponible ('+status+'), réessaie dans un instant';
   return 'Réponse inattendue du serveur'+(titre?' (« '+titre.trim()+' »)':status?' (HTTP '+status+')':'')+' — vérifie « Qui a accès : Tout le monde » dans le déploiement';
+}
+/* V3.9.1 — les erreurs PASSAGÈRES de Google (« Page introuvable », « unable to open the file »,
+   5xx, délai) se réessaient toutes seules, 2 fois, avec une pause qui s'allonge. Réservé aux
+   demandes qu'on peut rejouer sans risque (recherche IA, envoi d'une image, quiz IA). */
+function erreurPassagere(e){return /Page introuvable|unable to open|Réponse inattendue|indisponible \(5\d\d|ne répond pas/i.test(String(e&&e.message||e||''))}
+async function appelRetente(payload,ms,n){
+  let derniere;n=n===undefined?2:n;
+  for(let i=0;i<=n;i++){
+    try{return await appel(payload,ms)}
+    catch(e){derniere=e;if(!erreurPassagere(e)||i===n)throw e;await new Promise(r=>setTimeout(r,2000*(i+1)))}
+  }
+  throw derniere;
 }
 function kpiPayload(){
   const out=[];const vus={};
