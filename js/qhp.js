@@ -397,7 +397,10 @@ function flLotRendu(){
 }
 function flLotChoisir(i,id){const f=flLot.fichiers[i];if(!f)return;f.docId=id||'';f.etat='';flLotRendu()}
 async function flLotFichiers(inp){
-  const fs=[...(inp.files||[])].slice(0,60);inp.value='';if(!fs.length)return;
+  /* V3.9 : un dossier entier (sous-dossiers compris) ou des fichiers ; seuls les PDF / images comptent */
+  const fs=[...(inp.files||[])].filter(f=>/\.(pdf|png|jpe?g|webp)$/i.test(f.name)&&!/^[.~$]/.test(f.name)).slice(0,400);inp.value='';
+  if(!fs.length){toast('Aucun PDF ni image dans ce choix',true);return}
+  toast(fs.length+' fichier'+(fs.length>1?'s':'')+' à lire…');
   for(const f of fs){
     const e={nom:f.name,docId:'',src:'',b64:'',mime:'image/jpeg',etat:'⏳ lecture…'};flLot.fichiers.push(e);flLotRendu();
     try{
