@@ -1036,15 +1036,22 @@
 
 /* V3.6 — oublis Vigiminutes / QHP */
 .ob-ag{margin:4px 0 14px}.ob-ag h4{display:flex;gap:8px;align-items:center;margin:6px 0}
-.ob-tab th,.ob-tab td{text-align:center;padding:5px 6px;white-space:nowrap}
-.ob-tab td.ob-nom{text-align:left;font-weight:600;white-space:normal;min-width:160px}
-.ob-tab td:nth-child(2){text-align:left}
-.ob-tab th.ob-cour{background:#fff3e0;color:#9a5b00}
+.ob-tab{border-collapse:separate;border-spacing:0}
+.ob-tab th,.ob-tab td{text-align:center;padding:6px 8px;white-space:nowrap;border-bottom:1px solid #e6edf3}
+.ob-tab td.ob-nom,.ob-tab th.ob-nom{text-align:left;font-weight:700;white-space:normal;min-width:170px}
+.ob-tab td.ob-cond,.ob-tab th.ob-cond{text-align:left;color:#4c6379}
+.ob-tab th.ob-gv{background:#e3f0fb;color:#1F6FB2}.ob-tab th.ob-gq{background:#ede7f7;color:#5b3fa0}
+.ob-tab thead tr:first-child th.ob-gv,.ob-tab thead tr:first-child th.ob-gq{font-size:12px;letter-spacing:.6px;text-transform:uppercase;padding:7px 8px}
+.ob-tab th.ob-cour{outline:2px solid #e8a33d;outline-offset:-2px}
+.ob-tab td.ob-c{box-shadow:inset 2px 0 0 #e8a33d,inset -2px 0 0 #e8a33d}
+.ob-tab th.ob-tot,.ob-tab td.ob-tot{font-weight:800;color:#7b8fa3;border-left:3px solid #dbe4ee}.ob-tab td.ob-tot.ko{color:#C22B22}
+/* les deux familles côte à côte : une vraie coupure entre Vigiminutes et QHP */
+.ob-deux th.ob-gq:first-of-type,.ob-deux td.ob-q1{border-left:3px solid #c9d4df}
 .ob-ok{color:#158A52;font-weight:700;background:#eef8f2}
 .ob-ko{color:#fff;font-weight:800;background:#C22B22}
 .ob-att{color:#9a5b00;background:#fff3e0}
-.ob-na{color:#b6c2ce}
-.ob-leg{display:inline-block;min-width:20px;text-align:center;border-radius:5px;padding:0 4px}
+.ob-na{background:#e9eef3;color:transparent}
+.ob-leg{display:inline-block;min-width:20px;text-align:center;border-radius:5px;padding:0 4px;border:1px solid rgba(0,0,0,.06)}
 
 /* V3.7 — entrées / départs */
 .cl-h{margin:12px 0 6px;font-size:14px;display:flex;gap:8px;align-items:center}

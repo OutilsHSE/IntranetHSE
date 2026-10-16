@@ -51,9 +51,17 @@ const retexImgs={};
    à la deuxième ouverture, les 150 cartes de flashs ne demandent plus rien au serveur ;
    (2) la file d'attente peut être VIDÉE (retexViderFile) quand on ouvre un flash, pour que
    sa grande image ne fasse pas la queue derrière 150 vignettes de la liste. */
-let retexEnCours=0;const retexFile=[];
-function retexSuivant(){while(retexEnCours<3&&retexFile.length){const t=retexFile.shift();retexEnCours++;
-  t.go().finally(()=>{retexEnCours--;retexSuivant()})}}
+let retexEnCours=0,retexBasEnCours=0;const retexFile=[];
+/* V3.9.5 : deux voies — les demandes « hautes » (grande image du flash ouvert, cartes à l'écran) passent
+   toujours devant ; le préchargement de fond (« bas ») n'occupe jamais plus d'une des 3 places. */
+function retexSuivant(){
+  while(retexEnCours<3&&retexFile.length){
+    let i=retexFile.findIndex(t=>!t.bas);
+    if(i<0){if(retexBasEnCours>=1)return;i=0}
+    const t=retexFile.splice(i,1)[0];retexEnCours++;if(t.bas)retexBasEnCours++;
+    t.go().finally(()=>{retexEnCours--;if(t.bas)retexBasEnCours--;retexSuivant()});
+  }
+}
 function retexViderFile(){while(retexFile.length){const t=retexFile.shift();t.fin({err:'annulé'})}
   if(typeof retexLot!=='undefined'){while(retexLot.length){const e=retexLot.shift();delete retexImgs[e.k];e.ok({err:'annulé'})}}}
 /* cache navigateur des images (clé id|taille → data URL) */
@@ -81,10 +89,12 @@ async function imgCacheEcrire(k,src){
 let retexLot=[],retexLotTimer=null;
 function retexLotEnvoyer(){
   retexLotTimer=null;
+  /* les demandes « hautes » (cartes à l'écran) d'abord, le fond ensuite ; 10 vignettes par appel (≈ 5 s) */
+  retexLot.sort((a,b)=>(a.bas?1:0)-(b.bas?1:0));
   while(retexLot.length){
-    const lot=retexLot.splice(0,20);
+    const lot=retexLot.splice(0,10), bas=lot.every(e=>e.bas);
     const fin=x=>lot.forEach(e=>{delete retexImgs[e.k];e.ok(x)});
-    retexFile.push({k:'lot',fin,go:()=>appel({action:'photos',data:{ids:lot.map(e=>e.id)}},90000)
+    retexFile.push({k:'lot',bas,fin,go:()=>appel({action:'photos',data:{ids:lot.map(e=>e.id)}},60000)
       .then(r=>{const im=(r&&r.images)||{};lot.forEach(e=>{const v=im[e.id];
         if(v&&v.b64&&/^image\//.test(String(v.mime||'image/jpeg'))){const src='data:'+(v.mime||'image/jpeg')+';base64,'+v.b64;imgCacheEcrire(e.k,src);e.ok({src})}
         else{delete retexImgs[e.k];e.ok({err:(v&&v.erreur)||'réponse vide'})}})})
@@ -92,15 +102,15 @@ function retexLotEnvoyer(){
   }
   retexSuivant();
 }
-function retexImg(id,taille){
-  const k=id+'|'+(taille||'');
+function retexImg(id,taille,opt){
+  const k=id+'|'+(taille||''), bas=!!(opt&&opt.bas);
   if(retexImgs[k])return retexImgs[k];
   const p=new Promise(ok=>{
     imgCacheLire(k).then(src=>{
       if(src){ok({src});return}
       if(retexImgs[k]!==p){ok({err:'annulé'});return}          // vidée entre-temps
-      if(taille==='petit'){retexLot.push({id,k,ok});if(!retexLotTimer)retexLotTimer=setTimeout(retexLotEnvoyer,150);return}
-      retexFile.push({k,fin:ok,go:()=>appel({action:'photo',id:id,taille:taille||''},60000)
+      if(taille==='petit'){retexLot.push({id,k,ok,bas});if(!retexLotTimer)retexLotTimer=setTimeout(retexLotEnvoyer,150);return}
+      retexFile.push({k,bas,fin:ok,go:()=>appel({action:'photo',id:id,taille:taille||''},60000)
         .then(r=>r&&r.ok&&r.b64?(/^image\//.test(String(r.mime||'image/jpeg'))?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:'le serveur a rendu un fichier qui n’est pas une image ('+r.mime+')'}):{err:(r&&r.erreur)||'réponse vide'})
         .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return {err:(e&&e.message)||'erreur'}})
         .then(x=>{if(x.err)delete retexImgs[k];else if(x.src.startsWith('data:image/'))imgCacheEcrire(k,x.src);ok(x)})});

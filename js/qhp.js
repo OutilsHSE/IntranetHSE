@@ -85,12 +85,13 @@ function renderQhp(){
   /* les derniers flashs parus : ceux des 3 derniers mois, et au moins les 8 plus récents */
   if(typeof banque!=='undefined'&&!banque.charge&&!banque.enCours&&typeof chargerBanque==='function')setTimeout(()=>chargerBanque(false),0);
   const tousFl=banqueFlashs().slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  const lim=new Date();lim.setMonth(lim.getMonth()-3);const limK=lim.toISOString().slice(0,10);
-  let derniers=tousFl.filter(d=>String(d.date||'').slice(0,10)>=limK);if(derniers.length<8)derniers=tousFl.slice(0,8);
+  /* V3.9.5 : les deux derniers MOIS DE PARUTION (pas de remplissage avec de vieux flashs) */
+  const moisParus=[...new Set(tousFl.map(d=>String(d.date||'').slice(0,7)).filter(m=>/^\d{4}-\d{2}$/.test(m)))].slice(0,2);
+  const derniers=tousFl.filter(d=>moisParus.includes(String(d.date||'').slice(0,7)));
   const typeLib=d=>(typeof BQ_TYPES!=='undefined'&&BQ_TYPES[d.type])?BQ_TYPES[d.type].lib:'Non typé';
   if(!tousFl.length)h+='<div class="secempty">'+((typeof banque!=='undefined'&&banque.enCours)?'⏳ Chargement des flashs…':'Aucun flash dans la banque pour l’instant.')+'</div>';
   else{
-    h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' paru'+(derniers.length>1?'s':'')+' récemment — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
+    h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' — '+moisParus.map(m=>esc(qhpMoisLib(m))).join(' et ')+' — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
     h+='<div class="fl-grid" id="fl-derniers">'+derniers.map(d=>{const t=enrichissement(d),c=flCouleur(d);
       return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
         +(t&&t.image?'<div class="fl-vig" data-fim="'+esc(t.image)+'"></div>':'<div class="fl-vig vide"><span>⚡</span></div>')
@@ -202,11 +203,11 @@ function flChargerImages(){
         if(el.classList.contains('pret')){el.classList.remove('floue','ko');el.title='Grande image indisponible'+(x&&x.err?' : '+x.err:'')+' — la vignette est affichée'}   // la vignette, nette, fait l'affaire
         else el.innerHTML='<div class="fl-img-ko" onclick="event.stopPropagation();const p=this.parentNode;delete p.dataset.ok;p.classList.remove(\'ko\');this.remove();flChargerImages()">📷 Image indisponible'+(x&&x.err?'<br><small>'+esc(x.err)+'</small>':'')+'<br><span class="btn btn-ghost btn-sm" style="margin-top:8px">↻ Réessayer</span></div>'}}
     else delete el.dataset.ok};
-  const charge=el=>{el.dataset.ok='1';
+  const charge=(el,bas)=>{el.dataset.ok='1';
     if(el.classList.contains('fl-grande')){
+      retexImg(el.dataset.fim,'').then(x=>{if(x&&x.src){el.classList.remove('floue')}pose(el,x)});            // la grande d'abord : voie haute
       retexImg(el.dataset.fim,'petit').then(x=>{if(x&&x.src&&!el.classList.contains('pret')){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret','floue')}});
-      retexImg(el.dataset.fim,'').then(x=>{if(x&&x.src){el.classList.remove('floue')}pose(el,x)});
-    }else retexImg(el.dataset.fim,'petit').then(x=>pose(el,x));
+    }else retexImg(el.dataset.fim,'petit',{bas:!!bas}).then(x=>pose(el,x));
   };
   const els=[...document.querySelectorAll('#v-qhp [data-fim]:not([data-ok])')];
   if(!('IntersectionObserver' in window)){els.forEach(charge);return}
@@ -215,7 +216,7 @@ function flChargerImages(){
   /* V3.9.3 : les cartes hors écran se préchargent en arrière-plan, par lots, 2 s après l'affichage
      (elles finissent dans le cache du navigateur : le défilement et les prochaines visites sont instantanés) */
   if(flPrefetchTimer)clearTimeout(flPrefetchTimer);
-  flPrefetchTimer=setTimeout(()=>{document.querySelectorAll('#v-qhp .fl-vig[data-fim]:not([data-ok])').forEach(el=>{if(flObs)flObs.unobserve(el);charge(el)})},2000);
+  flPrefetchTimer=setTimeout(()=>{document.querySelectorAll('#v-qhp .fl-vig[data-fim]:not([data-ok])').forEach(el=>{if(flObs)flObs.unobserve(el);charge(el,true)})},2000);
 }
 function qhpOuvrirFlash(id){if(typeof retexViderFile==='function')retexViderFile();qhpFlashOuvert=id;qhpThemeOuvert=null;qhpRep={};renderQhp();window.scrollTo(0,0)}
 function qhpFermerFlash(){qhpFlashOuvert=null;qhpThemeOuvert=null;renderQhp();window.scrollTo(0,0)}

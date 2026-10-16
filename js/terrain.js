@@ -342,19 +342,25 @@ function oublisOuvrir(fam){
 function oublisModalRendu(){
   const t=document.getElementById('obm-titre'),c=document.getElementById('obm-corps');if(!c)return;
   if(t)t.textContent=(oublisFam==='qhp'?'🗣️ QHP par chantier':'📝 Vigiminutes par chantier')+(agenceChoisie?' — '+agenceChoisie:' — toutes agences');
-  c.innerHTML=renderOublisHSE('modal');
+  c.innerHTML=renderOublisHSE('modal',oublisFam);
 }
-function renderOublisHSE(cible){
+function renderOublisHSE(cible,fam){
+  /* V3.9.5 — lisible : UNE famille à la fois quand on vient d'une carte de l'accueil (fam = 'vigi' | 'qhp'),
+     les deux côte à côte dans la zone HSE avec une vraie séparation ; une case « pas attendue »
+     (chantier pas actif) est GRISE, pleine ; la période en cours est encadrée ; nombre d'oublis par chantier. */
   const o=state.oublis, dansModal=cible==='modal', rafraichir=dansModal?'oublisModalRendu()':'renderTodo()';
   if(!oublisUtilisables(o))return o&&o.erreur?'<p class="muted">Le calcul des oublis a échoué côté serveur : '+esc(o.erreur)+'. Relance une synchronisation (🔄) ; si ça persiste, le classeur Vigiminutes ou QHP n’est pas lisible.</p>'
     :'<p class="muted">Le suivi arrive à la prochaine synchronisation (bouton 🔄 en haut).</p>';
-  const nS=o.semaines.length,nM=o.mois.length;
-  const cell=(n,actif,courant)=>{const e=etatCase(n,actif,courant);return '<td class="ob-'+e+'" title="'+(e==='ok'?n+' fait'+(n>1?'s':''):e==='ko'?'oubli':e==='att'?'à faire (période en cours)':'chantier pas actif')+'">'+(e==='ok'?n:e==='ko'?'✗':e==='att'?'⏳':'·')+'</td>'};
-  const aOubli=c=>c.vigi.some((n,i)=>['ko','att'].includes(etatCase(n,c.actifV[i],i===nS-1)))||c.qhp.some((n,i)=>['ko','att'].includes(etatCase(n,c.actifQ[i],i===nM-1)));
-  const nbKo=c=>c.vigi.filter((n,i)=>etatCase(n,c.actifV[i],i===nS-1)==='ko').length+c.qhp.filter((n,i)=>etatCase(n,c.actifQ[i],i===nM-1)==='ko').length;
-  const l=oublisListe().filter(c=>oublisTous||aOubli(c));
+  const nS=o.semaines.length,nM=o.mois.length, montrerV=fam!=='qhp', montrerQ=fam!=='vigi';
+  const cell=(n,actif,courant,extra)=>{const e=etatCase(n,actif,courant);return '<td class="ob-'+e+(courant?' ob-c':'')+(extra||'')+'" title="'+(e==='ok'?n+' fait'+(n>1?'s':''):e==='ko'?'oubli':e==='att'?'à faire (période en cours)':'pas attendu : chantier sans activité')+'">'+(e==='ok'?n:e==='ko'?'✗':e==='att'?'⏳':'')+'</td>'};
+  const koV=c=>c.vigi.filter((n,i)=>etatCase(n,c.actifV[i],i===nS-1)==='ko').length, koQ=c=>c.qhp.filter((n,i)=>etatCase(n,c.actifQ[i],i===nM-1)==='ko').length;
+  const attV=c=>c.vigi.some((n,i)=>etatCase(n,c.actifV[i],i===nS-1)==='att'), attQ=c=>c.qhp.some((n,i)=>etatCase(n,c.actifQ[i],i===nM-1)==='att');
+  const nbKo=c=>(montrerV?koV(c):0)+(montrerQ?koQ(c):0);
+  const aRelancer=c=>nbKo(c)>0||(montrerV&&attV(c))||(montrerQ&&attQ(c));
+  const l=oublisListe().filter(c=>oublisTous||aRelancer(c));
   const semLib=s=>s.slice(8,10)+'/'+s.slice(5,7);
-  let h='<p class="hint" style="margin:0 0 8px">1 Vigiminute par semaine et 1 QHP par mois sur chaque chantier actif. <span class="ob-ok ob-leg">3</span> fait · <span class="ob-ko ob-leg">✗</span> oubli · <span class="ob-att ob-leg">⏳</span> période en cours · <span class="ob-na ob-leg">·</span> chantier pas actif. Calculé à la synchro'+(o.calculeLe?' · '+esc(frDateCourt(String(o.calculeLe).slice(0,10))):'')+'.</p>'
+  let h='<p class="hint" style="margin:0 0 8px">'+(montrerV?'<b>1 Vigiminute par semaine</b>':'')+(montrerV&&montrerQ?' et ':'')+(montrerQ?'<b>1 QHP par mois</b>':'')+' sur chaque chantier actif. '
+    +'<span class="ob-ok ob-leg">3</span> fait · <span class="ob-ko ob-leg">✗</span> oubli · <span class="ob-att ob-leg">⏳</span> période en cours · <span class="ob-na ob-leg">&nbsp;</span> pas attendu (chantier sans activité). Calculé à la synchro'+(o.calculeLe?' · '+esc(frDateCourt(String(o.calculeLe).slice(0,10))):'')+'.</p>'
     +'<div class="row no-print" style="gap:8px;margin-bottom:8px"><span class="seg"><button class="'+(oublisTous?'':'on')+'" onclick="oublisTous=false;'+rafraichir+'">Chantiers à relancer</button><button class="'+(oublisTous?'on':'')+'" onclick="oublisTous=true;'+rafraichir+'">Tous les chantiers actifs</button></span></div>';
   (o.erreurs||[]).forEach(e=>{h+='<div class="secempty" style="margin-bottom:8px">⚠️ '+esc(e)+'</div>'});
   if(!l.length)return h+'<p class="muted">'+(oublisTous?'Aucun chantier actif'+(agenceChoisie?' pour cette agence':'')+'.':'Rien à relancer'+(agenceChoisie?' pour cette agence':'')+' 🎉')+'</p>';
@@ -362,11 +368,13 @@ function renderOublisHSE(cible){
   ags.forEach(ag=>{
     const lc=l.filter(c=>(c.agence||'')===ag).sort((a,b)=>nbKo(b)-nbKo(a)||String(a.nom).localeCompare(String(b.nom),'fr'));
     h+='<div class="ob-ag"><h4>'+(ag?'<span class="apill ag-'+esc(ag)+'">'+esc(ag)+'</span>':'<span class="apill">Sans agence</span>')+' <span class="muted small">'+lc.length+' chantier'+(lc.length>1?'s':'')+'</span></h4>'
-      +'<div class="agb-scroll"><table class="atab ob-tab"><thead><tr><th rowspan="2">Chantier</th><th rowspan="2">Conducteur</th><th colspan="'+nS+'">Vigiminutes · semaine du</th><th colspan="'+nM+'">QHP · mois</th></tr><tr>'
-      +o.semaines.map((s,i)=>'<th'+(i===nS-1?' class="ob-cour"':'')+'>'+(i===nS-1?'cette sem.':semLib(s))+'</th>').join('')
-      +o.mois.map((m,i)=>'<th'+(i===nM-1?' class="ob-cour"':'')+'>'+MOIS_COURTS[Number(m.slice(5,7))-1]+'</th>').join('')+'</tr></thead><tbody>'
-      +lc.map(c=>'<tr><td class="ob-nom">'+esc(c.nom)+'</td><td class="small">'+esc(c.conducteur||'—')+'</td>'
-        +c.vigi.map((n,i)=>cell(n,c.actifV[i],i===nS-1)).join('')+c.qhp.map((n,i)=>cell(n,c.actifQ[i],i===nM-1)).join('')+'</tr>').join('')
+      +'<div class="agb-scroll"><table class="atab ob-tab'+(montrerV&&montrerQ?' ob-deux':'')+'"><thead><tr><th rowspan="2" class="ob-nom">Chantier</th><th rowspan="2" class="ob-cond">Conducteur</th>'
+      +(montrerV?'<th colspan="'+nS+'" class="ob-gv">📝 Vigiminutes · semaine du</th>':'')+(montrerQ?'<th colspan="'+nM+'" class="ob-gq">🗣️ QHP · mois</th>':'')+'<th rowspan="2" class="ob-tot">Oublis</th></tr><tr>'
+      +(montrerV?o.semaines.map((s,i)=>'<th class="ob-gv'+(i===nS-1?' ob-cour':'')+'">'+(i===nS-1?'cette sem.':semLib(s))+'</th>').join(''):'')
+      +(montrerQ?o.mois.map((m,i)=>'<th class="ob-gq'+(i===nM-1?' ob-cour':'')+'">'+MOIS_COURTS[Number(m.slice(5,7))-1]+'</th>').join(''):'')+'</tr></thead><tbody>'
+      +lc.map(c=>{const k=nbKo(c);return '<tr><td class="ob-nom">'+esc(c.nom)+'</td><td class="ob-cond small">'+esc(c.conducteur||'—')+'</td>'
+        +(montrerV?c.vigi.map((n,i)=>cell(n,c.actifV[i],i===nS-1)).join(''):'')+(montrerQ?c.qhp.map((n,i)=>cell(n,c.actifQ[i],i===nM-1,(montrerV&&i===0)?' ob-q1':'')).join(''):'')
+        +'<td class="ob-tot'+(k?' ko':'')+'">'+(k||'—')+'</td></tr>'}).join('')
       +'</tbody></table></div></div>';
   });
   return h;
