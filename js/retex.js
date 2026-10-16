@@ -54,7 +54,8 @@ const retexImgs={};
 let retexEnCours=0;const retexFile=[];
 function retexSuivant(){while(retexEnCours<3&&retexFile.length){const t=retexFile.shift();retexEnCours++;
   t.go().finally(()=>{retexEnCours--;retexSuivant()})}}
-function retexViderFile(){while(retexFile.length){const t=retexFile.shift();delete retexImgs[t.k];t.fin({err:'annulé'})}}
+function retexViderFile(){while(retexFile.length){const t=retexFile.shift();t.fin({err:'annulé'})}
+  if(typeof retexLot!=='undefined'){while(retexLot.length){const e=retexLot.shift();delete retexImgs[e.k];e.ok({err:'annulé'})}}}
 /* cache navigateur des images (clé id|taille → data URL) */
 const IMG_CACHE_JOURS=14;
 let imgDbP=null;
@@ -69,11 +70,27 @@ function imgDb(){
 async function imgCacheLire(k){
   try{const db=await imgDb();if(!db)return null;
     return await new Promise(ok=>{const t=db.transaction('img','readonly').objectStore('img').get(k);t.onsuccess=()=>{const v=t.result;
-      if(v&&v.src&&Date.now()-(v.t||0)<IMG_CACHE_JOURS*864e5)ok(v.src);else ok(null)};t.onerror=()=>ok(null)})}catch(e){return null}
+      if(v&&typeof v.src==='string'&&v.src.startsWith('data:image/')&&Date.now()-(v.t||0)<IMG_CACHE_JOURS*864e5)ok(v.src);else ok(null)};t.onerror=()=>ok(null)})}catch(e){return null}
 }
 async function imgCacheEcrire(k,src){
   try{const db=await imgDb();if(!db)return;
     const t=db.transaction('img','readwrite');t.objectStore('img').put({src,t:Date.now()},k)}catch(e){}
+}
+/* V3.9.3 — les VIGNETTES partent par lots : toutes celles demandées dans la même fraction de
+   seconde (jusqu'à 20) font UN seul appel « photos » au serveur, au lieu d'un appel chacune. */
+let retexLot=[],retexLotTimer=null;
+function retexLotEnvoyer(){
+  retexLotTimer=null;
+  while(retexLot.length){
+    const lot=retexLot.splice(0,20);
+    const fin=x=>lot.forEach(e=>{delete retexImgs[e.k];e.ok(x)});
+    retexFile.push({k:'lot',fin,go:()=>appel({action:'photos',data:{ids:lot.map(e=>e.id)}},90000)
+      .then(r=>{const im=(r&&r.images)||{};lot.forEach(e=>{const v=im[e.id];
+        if(v&&v.b64&&/^image\//.test(String(v.mime||'image/jpeg'))){const src='data:'+(v.mime||'image/jpeg')+';base64,'+v.b64;imgCacheEcrire(e.k,src);e.ok({src})}
+        else{delete retexImgs[e.k];e.ok({err:(v&&v.erreur)||'réponse vide'})}})})
+      .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}fin({err:(e&&e.message)||'erreur'})})});
+  }
+  retexSuivant();
 }
 function retexImg(id,taille){
   const k=id+'|'+(taille||'');
@@ -82,10 +99,11 @@ function retexImg(id,taille){
     imgCacheLire(k).then(src=>{
       if(src){ok({src});return}
       if(retexImgs[k]!==p){ok({err:'annulé'});return}          // vidée entre-temps
+      if(taille==='petit'){retexLot.push({id,k,ok});if(!retexLotTimer)retexLotTimer=setTimeout(retexLotEnvoyer,150);return}
       retexFile.push({k,fin:ok,go:()=>appel({action:'photo',id:id,taille:taille||''},60000)
-        .then(r=>r&&r.ok&&r.b64?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:(r&&r.erreur)||'réponse vide'})
+        .then(r=>r&&r.ok&&r.b64?(/^image\//.test(String(r.mime||'image/jpeg'))?{src:'data:'+(r.mime||'image/jpeg')+';base64,'+r.b64}:{err:'le serveur a rendu un fichier qui n’est pas une image ('+r.mime+')'}):{err:(r&&r.erreur)||'réponse vide'})
         .catch(e=>{if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}return {err:(e&&e.message)||'erreur'}})
-        .then(x=>{if(x.err)delete retexImgs[k];else imgCacheEcrire(k,x.src);ok(x)})});
+        .then(x=>{if(x.err)delete retexImgs[k];else if(x.src.startsWith('data:image/'))imgCacheEcrire(k,x.src);ok(x)})});
       retexSuivant()});
   });
   retexImgs[k]=p;return p;

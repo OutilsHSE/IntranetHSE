@@ -168,10 +168,13 @@ function renderFlashListe(){
 /* V3.9.2 : les vignettes de la liste ne sont demandées que quand la carte arrive à l'écran
    (150 flashs = 150 demandes d'un coup, sinon) ; la grande image d'un flash est servie en
    priorité (file vidée), et sa vignette, déjà connue, s'affiche en attendant. */
-let flObs=null;
+let flObs=null,flPrefetchTimer=null;
 function flChargerImages(){
   if(typeof retexImg!=='function')return;
-  const pose=(el,x)=>{if(x&&x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret');el.classList.remove('ko')}else if(!(x&&x.err==='annulé')){el.classList.add('ko');el.title='Image indisponible'+(x&&x.err?' : '+x.err:'')}else delete el.dataset.ok};
+  const pose=(el,x)=>{if(x&&x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret');el.classList.remove('ko');el.innerHTML=''}
+    else if(!(x&&x.err==='annulé')){el.classList.add('ko');el.title='Image indisponible'+(x&&x.err?' : '+x.err:'');
+      if(el.classList.contains('fl-grande')){el.innerHTML='<div class="fl-img-ko" onclick="event.stopPropagation();const p=this.parentNode;delete p.dataset.ok;p.classList.remove(\'ko\');this.remove();flChargerImages()">📷 Image indisponible'+(x&&x.err?'<br><small>'+esc(x.err)+'</small>':'')+'<br><span class="btn btn-ghost btn-sm" style="margin-top:8px">↻ Réessayer</span></div>'}}
+    else delete el.dataset.ok};
   const charge=el=>{el.dataset.ok='1';
     if(el.classList.contains('fl-grande')){
       retexImg(el.dataset.fim,'petit').then(x=>{if(x&&x.src&&!el.classList.contains('pret')){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret','floue')}});
@@ -182,6 +185,10 @@ function flChargerImages(){
   if(!('IntersectionObserver' in window)){els.forEach(charge);return}
   if(!flObs)flObs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){flObs.unobserve(e.target);if(!e.target.dataset.ok)charge(e.target)}}),{rootMargin:'300px'});
   els.forEach(el=>{if(el.classList.contains('fl-grande'))charge(el);else flObs.observe(el)});
+  /* V3.9.3 : les cartes hors écran se préchargent en arrière-plan, par lots, 2 s après l'affichage
+     (elles finissent dans le cache du navigateur : le défilement et les prochaines visites sont instantanés) */
+  if(flPrefetchTimer)clearTimeout(flPrefetchTimer);
+  flPrefetchTimer=setTimeout(()=>{document.querySelectorAll('#v-qhp .fl-vig[data-fim]:not([data-ok])').forEach(el=>{if(flObs)flObs.unobserve(el);charge(el)})},2000);
 }
 function qhpOuvrirFlash(id){if(typeof retexViderFile==='function')retexViderFile();qhpFlashOuvert=id;qhpThemeOuvert=null;qhpRep={};renderQhp();window.scrollTo(0,0)}
 function qhpFermerFlash(){qhpFlashOuvert=null;qhpThemeOuvert=null;renderQhp();window.scrollTo(0,0)}
