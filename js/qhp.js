@@ -49,28 +49,32 @@ function qhpJouerVideo(el){const u=el.dataset.u;const w=document.createElement('
 let qhpOnglet=(function(){try{return localStorage.getItem('ihse_qhp_onglet')||'themes'}catch(e){return 'themes'}})();
 let qhpFlashOuvert=null;
 let flFiltre={q:'',sec:'',type:'',an:'',mois:''}, flIA={q:'',ids:[],pq:{},enCours:false,err:''};
-function flReset(){flFiltre={q:'',sec:'',type:'',an:'',mois:''};flIA={q:'',ids:[],pq:{},enCours:false,err:''}}
+function flReset(){flFiltre={q:'',sec:'',type:'',an:'',mois:''};flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''}}
 /* V3.9 : cliquer « Tous les flashs » repart de la liste complète (plus de question ni de recherche IA qui traîne) */
 function setQhpOnglet(o){qhpOnglet=o==='flashs'?'flashs':'themes';try{localStorage.setItem('ihse_qhp_onglet',qhpOnglet)}catch(e){}qhpFlashOuvert=null;qhpThemeOuvert=null;flReset();renderQhp()}
 function qhpVoirFlashs(){qhpOnglet='flashs';qhpFlashOuvert=null;qhpThemeOuvert=null;go('v-qhp')}
 function banqueFlashs(){return (typeof banqueData==='function'?banqueData():[]).filter(d=>d.famille==='flash')}
-function enrichissement(d){const l=qhpThemes();return l.find(t=>t.banque&&t.banque===d.id)||l.find(t=>t.flash&&d.url&&t.flash===d.url)||null}
+function flashParId(id){id=String(id);return banqueFlashs().find(x=>String(x.id)===id)}
+function enrichissement(d){const l=qhpThemes(),id=String(d.id);
+  return l.find(t=>t.banque&&String(t.banque)===id)||l.find(t=>t.flash&&d.url&&t.flash===d.url)
+    ||l.find(t=>!t.banque&&t.fichier&&d.fichier&&flNomNet(t.fichier)===flNomNet(d.fichier))||null}   // V3.9.4 : image déposée avant que la banque connaisse le flash
 function flCouleur(d){return (typeof bqCouleur==='function')?bqCouleur(d):'#1F6FB2'}
 function flDate(d){return (typeof bqDate==='function')?bqDate(d.date):String(d.date||'')}
 function renderQhp(){
   const box=document.getElementById('v-qhp');if(!box)return;
   if(qhpThemeOuvert){
     const t=qhpThemes().find(x=>x.id===qhpThemeOuvert);
-    const d=t&&t.banque?banqueFlashs().find(x=>x.id===t.banque):null;
+    const d=t&&t.banque?flashParId(t.banque):null;
     if(d){renderFlashPage(d,t);return}
     renderQhpTheme();return;
   }
-  if(qhpFlashOuvert){const d=banqueFlashs().find(x=>x.id===qhpFlashOuvert);if(d){renderFlashPage(d,enrichissement(d));return}qhpFlashOuvert=null}
+  if(qhpFlashOuvert){const d=flashParId(qhpFlashOuvert);if(d){renderFlashPage(d,enrichissement(d));return}qhpFlashOuvert=null}
   const nbFl=banqueFlashs().length;
   let h='<div class="arr-head"><div><h2>🎓 Espace QHP</h2><p class="small muted" style="margin:2px 0 0">Les quarts d’heure prévention : le flash, la vidéo, le quiz — et l’émargement à portée de main.</p></div>'
-    +'<div class="arr-kpis"><button class="btn btn-primary btn-sm no-print" onclick="flashsDuMois()" title="Ouvrir les derniers flashs parus">⚡ Flashs du mois</button>'+boutonEmargement('btn-sm')+(estEditeur()&&qhpOnglet==='themes'?'<button class="btn btn-primary btn-sm no-print" onclick="qhpEditer()">＋ Nouveau thème</button>':'')
+    +'<div class="arr-kpis">'+boutonEmargement('btn-sm')+(estEditeur()&&qhpOnglet==='themes'?'<button class="btn btn-ghost btn-sm no-print" onclick="qhpEditer()" title="Un thème animé : vidéo + quiz sans flash de la banque">＋ Thème animé</button>':'')
     +(estEditeur()&&qhpOnglet==='flashs'?'<button class="btn btn-ghost btn-sm no-print" onclick="flLotOuvrir()" title="Déposer les PDF des flashs : leur première page devient l’image de chaque flash">📤 Images des flashs</button>':'')+'</div></div>';
-  h+='<div class="seg qhp-ong no-print"><button class="'+(qhpOnglet==='themes'?'on':'')+'" onclick="setQhpOnglet(\'themes\')">🗓 Thèmes du mois</button><button class="'+(qhpOnglet==='flashs'?'on':'')+'" onclick="setQhpOnglet(\'flashs\')">📚 Tous les flashs'+(nbFl?' <span class="apill">'+nbFl+'</span>':'')+'</button></div>';
+  /* V3.9.4 : « 🔴 Derniers flashs » (les parutions des 3 derniers mois) remplace « Thèmes du mois » */
+  h+='<div class="seg qhp-ong no-print"><button class="rouge '+(qhpOnglet==='themes'?'on':'')+'" onclick="setQhpOnglet(\'themes\')">🔴 Derniers flashs</button><button class="'+(qhpOnglet==='flashs'?'on':'')+'" onclick="setQhpOnglet(\'flashs\')">📚 Tous les flashs'+(nbFl?' <span class="apill">'+nbFl+'</span>':'')+'</button></div>';
   if(qhpOnglet==='flashs'){
     if(typeof banque!=='undefined'&&!banque.charge&&!banque.enCours&&typeof chargerBanque==='function')setTimeout(()=>chargerBanque(false),0);
     h+='<div class="ia-recherche"><input type="text" id="fl-q" class="bqsearch" value="'+esc(flFiltre.q)+'" placeholder="🔎 Rechercher un flash… chute à l’eau, levage, chaleur — ou pose une question" oninput="flSaisie(this.value)" onkeydown="if(event.key===\'Enter\')flLancerIA()">'
@@ -78,12 +82,29 @@ function renderQhp(){
       +'<div class="bqbar no-print" id="fl-filtres"></div><div id="fl-liste"></div>';
     box.innerHTML=h;renderFlashListe();return;
   }
-  const l=qhpThemes().filter(t=>(t.actif||estEditeur())&&(!t.banque||t.mois));
-  if(!l.length)h+='<div class="secempty">Aucun thème pour l’instant.'+(estEditeur()?' Clique sur « ＋ Nouveau thème », ou ouvre un flash dans « Tous les flashs » et donne-lui un mois.':' Le service HSE les ajoute au fil des mois.')+'</div>';
-  else h+='<div class="qhp-grid">'+l.map(t=>'<div class="qhp-card'+(t.actif?'':' off')+'" onclick="qhpOuvrir(\''+esc(t.id)+'\')">'
+  /* les derniers flashs parus : ceux des 3 derniers mois, et au moins les 8 plus récents */
+  if(typeof banque!=='undefined'&&!banque.charge&&!banque.enCours&&typeof chargerBanque==='function')setTimeout(()=>chargerBanque(false),0);
+  const tousFl=banqueFlashs().slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const lim=new Date();lim.setMonth(lim.getMonth()-3);const limK=lim.toISOString().slice(0,10);
+  let derniers=tousFl.filter(d=>String(d.date||'').slice(0,10)>=limK);if(derniers.length<8)derniers=tousFl.slice(0,8);
+  const typeLib=d=>(typeof BQ_TYPES!=='undefined'&&BQ_TYPES[d.type])?BQ_TYPES[d.type].lib:'Non typé';
+  if(!tousFl.length)h+='<div class="secempty">'+((typeof banque!=='undefined'&&banque.enCours)?'⏳ Chargement des flashs…':'Aucun flash dans la banque pour l’instant.')+'</div>';
+  else{
+    h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' paru'+(derniers.length>1?'s':'')+' récemment — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
+    h+='<div class="fl-grid" id="fl-derniers">'+derniers.map(d=>{const t=enrichissement(d),c=flCouleur(d);
+      return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
+        +(t&&t.image?'<div class="fl-vig" data-fim="'+esc(t.image)+'"></div>':'<div class="fl-vig vide"><span>⚡</span></div>')
+        +'<div class="fl-c"><div class="fl-band"><span>'+esc(typeLib(d))+'</span><span>'+esc(flDate(d))+'</span></div>'
+        +'<div class="fl-t">'+esc(d.titre||d.fichier||'Flash')+'</div>'
+        +'<div class="fl-m">'+(d.secteur&&d.secteur!=='Général'?'<span class="fl-sec">'+esc(d.secteur)+'</span>':'')
+        +(t&&t.video?'<span>🎬</span>':'')+(t&&(t.quiz||[]).length?'<span>❓ '+t.quiz.length+'</span>':'')+'</div></div></div>'}).join('')+'</div>';
+  }
+  /* les thèmes animés (vidéo + quiz sans flash de la banque), s'il y en a */
+  const l=qhpThemes().filter(t=>(t.actif||estEditeur())&&!t.banque&&!t.fichier);
+  if(l.length)h+='<h3 class="qhp-sous">🗓 Thèmes animés</h3><div class="qhp-grid">'+l.map(t=>'<div class="qhp-card'+(t.actif?'':' off')+'" data-id="'+esc(t.id)+'" onclick="qhpOuvrir(this.dataset.id)">'
     +'<div class="qhp-mois">'+esc(qhpMoisLib(t.mois)||'—')+(t.actif?'':' · <i>masqué</i>')+'</div><div class="qhp-titre">'+esc(t.titre||'Sans titre')+'</div>'
     +'<div class="qhp-badges">'+(t.video?'<span>🎬 vidéo</span>':'')+(t.flash||t.image?'<span>⚡ flash</span>':'')+((t.quiz||[]).length?'<span>❓ quiz · '+t.quiz.length+'</span>':'')+'</div></div>').join('')+'</div>';
-  box.innerHTML=h;
+  box.innerHTML=h;flChargerImages();
 }
 function flSaisie(v){flFiltre.q=v;flFiltre.mois='';renderFlashListe()}
 /* V3.5.1 — « ⚡ Flashs du mois » : les flashs du mois en cours ou, s'il n'y en a pas
@@ -94,7 +115,7 @@ function dernierMoisFlashs(){
 }
 function flashsDuMois(){
   qhpOnglet='flashs';try{localStorage.setItem('ihse_qhp_onglet','flashs')}catch(e){}
-  qhpThemeOuvert=null;qhpFlashOuvert=null;flIA={q:'',ids:[],pq:{},enCours:false,err:''};
+  qhpThemeOuvert=null;qhpFlashOuvert=null;flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''};
   const pret=banqueFlashs().length>0;
   if(!pret){flFiltre={q:'',sec:'',type:'',an:'',mois:'*'};if(document.querySelector('.view.active')&&document.querySelector('.view.active').id!=='v-qhp')go('v-qhp');else renderQhp();return}
   const m=dernierMoisFlashs();
@@ -108,12 +129,12 @@ function flSetFiltre(k,v){flFiltre[k]=v;flFiltre.mois='';renderFlashListe()}
 async function flLancerIA(){
   const q=String(flFiltre.q||'').trim();
   if(q.length<3){toast('Écris d’abord ta question (3 lettres au moins)',true);return}
-  flIA={q:q,ids:[],pq:{},enCours:true,err:'',debut:Date.now()};renderFlashListe();if(typeof chronoIAStart==='function')chronoIAStart();
-  try{const r=await rechercheIA(q,banqueFlashs());flIA.ids=r.ids||[];flIA.pq=r.pourquoi||{};flIA.cache=!!r.cache;flIA.duree=Math.round((Date.now()-flIA.debut)/1000)}
+  flIA={q:q,ids:[],pq:{},mots:[],enCours:true,err:'',debut:Date.now()};renderFlashListe();if(typeof chronoIAStart==='function')chronoIAStart();
+  try{const r=await iaMots(q);flIA.mots=r.mots;flIA.cache=r.cache;flIA.duree=Math.round((Date.now()-flIA.debut)/1000);if(!r.mots.length)flIA.err='l’IA n’a pas compris la question'}
   catch(e){flIA.err=e.message||'erreur'}
   finally{flIA.enCours=false;renderFlashListe()}
 }
-function flFinIA(){flIA={q:'',ids:[],pq:{},enCours:false,err:''};renderFlashListe()}
+function flFinIA(){flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''};flFiltre.q='';const i=document.getElementById('fl-q');if(i)i.value='';renderFlashListe()}
 function renderFlashListe(){
   const box=document.getElementById('fl-liste');if(!box)return;
   const tous=banqueFlashs();
@@ -127,40 +148,44 @@ function renderFlashListe(){
   if(typeof banque!=='undefined'&&banque.erreur)h+='<div class="secempty" style="border-color:rgba(194,43,34,.4);color:#C22B22">⚠️ '+esc(banque.erreur)+'</div>';
   if(flFiltre.mois==='*'&&tous.length){flashsDuMois();return}         // demandé avant que la banque ait répondu
   if(!tous.length){box.innerHTML=h+'<div class="secempty">'+((typeof banque!=='undefined'&&banque.enCours)?'⏳ Chargement des flashs…':'Aucun flash dans la banque pour l’instant.')+'</div>';return}
-  const iaActive=!!(flIA.q&&flIA.q===String(flFiltre.q||'').trim()&&(flIA.enCours||flIA.ids.length||flIA.err));
-  let l, elargi=false;
+  const iaActive=!!(flIA.q&&flIA.q===String(flFiltre.q||'').trim()&&(flIA.enCours||(flIA.mots||[]).length||flIA.err));
+  let l, elargi=false, partiel=false;
+  const net=(typeof bqNet==='function'?bqNet:x=>String(x).toLowerCase());
+  const foinDe=d=>net([d.titre,d.fichier,d.mots,typeLib(d),d.secteur].join(' '));
+  const cadre=tous.filter(d=>!(flFiltre.sec&&(d.secteur||'')!==flFiltre.sec)&&!(flFiltre.type&&typeLib(d)!==flFiltre.type)&&!(flFiltre.an&&String(d.date||'').slice(0,4)!==flFiltre.an));
+  const iaPrete=iaActive&&!flIA.err&&!flIA.enCours;
+  if(iaPrete)l=iaClasser(cadre,flIA.mots,foinDe);
   if(iaActive){
-    h+='<div class="ia-band">✨ Recherche IA : « '+esc(flIA.q)+' »'+(flIA.enCours?' — <i>recherche en cours… <span data-chrono="'+(flIA.debut||0)+'">0 s</span></i>':flIA.err?' — ⚠️ '+esc(flIA.err)+' <i>(résultats de la recherche simple ci-dessous)</i>':' — '+flIA.ids.length+' flash'+(flIA.ids.length>1?'s':'')+(flIA.cache?' <span class="muted">(réponse mémorisée)</span>':flIA.duree?' <span class="muted">('+flIA.duree+' s)</span>':''))+' <button class="btn btn-ghost btn-sm" onclick="flFinIA()">✕ Revenir à la recherche simple</button></div>';
+    h+='<div class="ia-band">✨ Recherche IA : « '+esc(flIA.q)+' »'+(flIA.enCours?' — <i>l’IA réfléchit… <span data-chrono="'+(flIA.debut||0)+'">0 s</span></i>':flIA.err?' — ⚠️ '+esc(flIA.err)+' <i>(résultats de la recherche simple ci-dessous)</i>':' → <b>'+flIA.mots.map(esc).join('</b>, <b>')+'</b> — '+l.length+' flash'+(l.length>1?'s':'')+(flIA.cache?' <span class="muted">(réponse mémorisée)</span>':flIA.duree?' <span class="muted">('+flIA.duree+' s)</span>':''))+' <button class="btn btn-ghost btn-sm" onclick="flFinIA()">✕ Effacer</button></div>';
   }
-  if(iaActive&&!flIA.err){
-    l=flIA.ids.map(id=>tous.find(d=>d.id===id)).filter(Boolean);
+  if(iaPrete){
+    /* l déjà classé */
   }else if(flFiltre.mois&&flFiltre.mois!=='*'){
     l=tous.filter(d=>String(d.date||'').slice(0,7)===flFiltre.mois).sort((a,b)=>String(a.titre||'').localeCompare(String(b.titre||''),'fr'));
     h+='<div class="ia-band fl-mois-band">⚡ Flashs de '+esc(qhpMoisLib(flFiltre.mois).toLowerCase())+' — '+l.length+' flash'+(l.length>1?'s':'')+' <button class="btn btn-ghost btn-sm" onclick="flFinMois()">✕ Voir tous les flashs</button></div>';
   }else{
-    const net=(typeof bqNet==='function'?bqNet:x=>String(x).toLowerCase());
-    const mots=net(flFiltre.q).split(' ').filter(Boolean);
+    const mots=(typeof bqMots==='function')?bqMots(flFiltre.q):net(flFiltre.q).split(' ').filter(Boolean);
     const corr=(typeof bqCorrespond==='function')?bqCorrespond:(ms,f)=>ms.every(m=>f.indexOf(m)>=0)?1:0;
-    l=tous.map(d=>{
-      if(flFiltre.sec&&(d.secteur||'')!==flFiltre.sec)return null;
-      if(flFiltre.type&&typeLib(d)!==flFiltre.type)return null;
-      if(flFiltre.an&&String(d.date||'').slice(0,4)!==flFiltre.an)return null;
+    l=cadre.map(d=>{
       if(!mots.length)return d;
-      const c=corr(mots,net([d.titre,d.fichier,d.mots,typeLib(d),d.secteur].join(' ')));   // V3.9 : synonymes, racines, fautes d'une lettre
+      const c=corr(mots,foinDe(d));   // V3.9 : synonymes, racines, fautes d'une lettre ; V3.9.4 : mots creux ignorés
       if(!c)return null; if(c===2)elargi=true;
       return c===2?Object.assign({},d,{_elargi:true}):d;
     }).filter(Boolean).sort((a,b)=>((a._elargi?1:0)-(b._elargi?1:0))||String(b.date||'').localeCompare(String(a.date||'')));
-    if(elargi&&typeof bqElargissements==='function'){const el=bqElargissements(mots);if(el)h+='<p class="hint">🔎 Recherche élargie : '+el+'</p>'}
+    if(!l.length&&mots.length>1){partiel=true;   // aucun flash avec TOUS les mots → ceux qui en ont certains, les plus complets d'abord
+      l=cadre.map(d=>{const f=foinDe(d),n=mots.filter(m=>corr([m],f)).length;return n?Object.assign({},d,{_n:n,_elargi:true}):null}).filter(Boolean).sort((a,b)=>b._n-a._n||String(b.date||'').localeCompare(String(a.date||'')))}
+    if(partiel)h+='<p class="hint">🔎 Aucun flash ne contient tous ces mots : voici ceux qui en contiennent certains, les plus complets d’abord.</p>';
+    else if(elargi&&typeof bqElargissements==='function'){const el=bqElargissements(mots);if(el)h+='<p class="hint">🔎 Recherche élargie : '+el+'</p>'}
   }
   h+='<p class="hint">'+l.length+' flash'+(l.length>1?'s':'')+(l.length!==tous.length?' sur '+tous.length:'')+'</p>';
-  if(!l.length&&!(iaActive&&!flIA.err))h+='<div class="secempty">Aucun flash ne correspond. Essaie ✨ IA : elle comprend la question entière.</div>';
-  if(!l.length&&iaActive&&!flIA.err&&!flIA.enCours)h+='<div class="secempty">L’IA n’a trouvé aucun flash pour cette question.</div>';
+  if(!l.length&&!iaPrete&&!flIA.enCours)h+='<div class="secempty">Aucun flash ne correspond. Essaie ✨ IA : elle comprend la question entière.</div>';
+  if(!l.length&&iaPrete)h+='<div class="secempty">Aucun flash ne porte ces mots dans son titre.</div>';
   h+='<div class="fl-grid">'+l.map(d=>{const t=enrichissement(d),c=flCouleur(d);
-    return '<div class="fl-card" style="--c:'+esc(c)+'" onclick="qhpOuvrirFlash(\''+esc(d.id)+'\')">'
+    return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
       +(t&&t.image?'<div class="fl-vig" data-fim="'+esc(t.image)+'"></div>':'<div class="fl-vig vide"><span>⚡</span></div>')
       +'<div class="fl-c"><div class="fl-band"><span>'+esc(typeLib(d))+'</span><span>'+esc(flDate(d))+'</span></div>'
       +'<div class="fl-t">'+esc(d.titre||d.fichier||'Flash')+'</div>'
-      +(iaActive&&!flIA.err&&flIA.pq[d.id]?'<div class="bqia">✨ '+esc(flIA.pq[d.id])+'</div>':'')
+      +(d._ia?'<div class="bqia">✨ '+esc(d._ia)+'</div>':'')
       +'<div class="fl-m">'+(d.secteur&&d.secteur!=='Général'?'<span class="fl-sec">'+esc(d.secteur)+'</span>':'')
       +(t&&t.video?'<span>🎬</span>':'')+(t&&(t.quiz||[]).length?'<span>❓ '+t.quiz.length+'</span>':'')+'</div></div></div>'}).join('')+'</div>';
   box.innerHTML=h;flChargerImages();
@@ -173,7 +198,9 @@ function flChargerImages(){
   if(typeof retexImg!=='function')return;
   const pose=(el,x)=>{if(x&&x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret');el.classList.remove('ko');el.innerHTML=''}
     else if(!(x&&x.err==='annulé')){el.classList.add('ko');el.title='Image indisponible'+(x&&x.err?' : '+x.err:'');
-      if(el.classList.contains('fl-grande')){el.innerHTML='<div class="fl-img-ko" onclick="event.stopPropagation();const p=this.parentNode;delete p.dataset.ok;p.classList.remove(\'ko\');this.remove();flChargerImages()">📷 Image indisponible'+(x&&x.err?'<br><small>'+esc(x.err)+'</small>':'')+'<br><span class="btn btn-ghost btn-sm" style="margin-top:8px">↻ Réessayer</span></div>'}}
+      if(el.classList.contains('fl-grande')){
+        if(el.classList.contains('pret')){el.classList.remove('floue','ko');el.title='Grande image indisponible'+(x&&x.err?' : '+x.err:'')+' — la vignette est affichée'}   // la vignette, nette, fait l'affaire
+        else el.innerHTML='<div class="fl-img-ko" onclick="event.stopPropagation();const p=this.parentNode;delete p.dataset.ok;p.classList.remove(\'ko\');this.remove();flChargerImages()">📷 Image indisponible'+(x&&x.err?'<br><small>'+esc(x.err)+'</small>':'')+'<br><span class="btn btn-ghost btn-sm" style="margin-top:8px">↻ Réessayer</span></div>'}}
     else delete el.dataset.ok};
   const charge=el=>{el.dataset.ok='1';
     if(el.classList.contains('fl-grande')){
@@ -297,15 +324,15 @@ function qhpEditer(id){
 /* V3.5 : enrichir un flash de la banque (vidéo, quiz, image) — crée ou reprend son thème */
 function qhpEditerFlash(docId){
   if(!estEditeur()){toast('Réservé au service HSE',true);return}
-  const d=banqueFlashs().find(x=>x.id===docId);if(!d)return;
+  const d=flashParId(docId);if(!d)return;
   const t=enrichissement(d);
-  if(t){qhpEditer(t.id);if(!t.banque)document.getElementById('mq-banque').value=d.id;return}
+  if(t){qhpEditer(t.id);if(!t.banque)document.getElementById('mq-banque').value=String(d.id);return}
   qhpEditer();
   document.getElementById('mq-titre-h').textContent='Flash : image, vidéo, quiz';
   document.getElementById('mq-titre').value=d.titre||'';
   document.getElementById('mq-mois').value='';
   document.getElementById('mq-flash').value=d.url||'';
-  document.getElementById('mq-banque').value=d.id;
+  document.getElementById('mq-banque').value=String(d.id);
 }
 let qhpImage={id:'',nouvelle:null};
 function qhpImageRendu(){
@@ -334,7 +361,8 @@ async function qhpEnregistrer(){
     catch(e){toast('Image non envoyée : '+(e.message||'?'),true);return}
   }
   const banqueId=g('mq-banque');
-  const o={id:qhpEnCours||('qt'+Date.now().toString(36)),maj:nowISO(),titre,mois:g('mq-mois'),video:g('mq-video'),flash:g('mq-flash'),note:g('mq-note'),quiz,actif:document.getElementById('mq-actif').checked,banque:banqueId,image:image};
+  const ancien=qhpEnCours?qhpThemes().find(x=>x.id===qhpEnCours):null;
+  const o={id:qhpEnCours||('qt'+Date.now().toString(36)),maj:nowISO(),titre,mois:g('mq-mois'),video:g('mq-video'),flash:g('mq-flash'),note:g('mq-note'),quiz,actif:document.getElementById('mq-actif').checked,banque:banqueId,image:image,fichier:banqueId?'':((ancien&&ancien.fichier)||'')};
   state.qhpThemes=(state.qhpThemes||[]).filter(x=>x.id!==o.id).concat([o]);
   save();closeModal();qhpRep={};
   if(banqueId){qhpFlashOuvert=banqueId;qhpThemeOuvert=null}else qhpThemeOuvert=o.id;
@@ -394,7 +422,7 @@ function flReconnaitre(nom){
   const n=flNomNet(nom);if(!n)return null;const tous=banqueFlashs();
   let d=tous.find(x=>flNomNet(x.fichier)===n)||tous.find(x=>flNomNet(x.titre)===n);
   if(d)return d;
-  if(n.length>=8){d=tous.find(x=>{const f=flNomNet(x.fichier),t=flNomNet(x.titre);return (f&&(f.indexOf(n)>=0||n.indexOf(f)>=0))||(t&&t.length>=8&&(t.indexOf(n)>=0||n.indexOf(t)>=0))});if(d)return d}
+  if(n.length>=8){d=tous.find(x=>{const f=flNomNet(x.fichier),t=flNomNet(x.titre);return (f&&f.length>=8&&(f.indexOf(n)>=0||n.indexOf(f)>=0))||(t&&t.length>=8&&(t.indexOf(n)>=0||n.indexOf(t)>=0))});if(d)return d}
   return null;
 }
 function flLotOuvrir(){
@@ -409,9 +437,9 @@ function flLotRendu(){
   const opts=tous.slice().sort((a,b)=>String(a.titre||a.fichier||'').localeCompare(String(b.titre||b.fichier||''),'fr'));
   box.innerHTML='<table class="tbl flot-tbl"><thead><tr><th>Fichier déposé</th><th>Flash de la banque</th><th>État</th></tr></thead><tbody>'+flLot.fichiers.map((f,i)=>{
     const d=f.docId?tous.find(x=>x.id===f.docId):null, t=d?enrichissement(d):null;
-    const etat=f.etat||(d?(t&&t.image?'⚠️ a déjà une image':'✓ prêt'):'❓ non reconnu — choisis le flash');
+    const etat=f.etat||(d?(t&&t.image?'⚠️ a déjà une image':'✓ prêt'):f.docId==='*attente*'?'🕓 gardée pour le flash à venir':'❓ non reconnu — choisis le flash, ou « en attente »');
     return '<tr><td><div class="flot-apercu"'+(f.src?' style="background-image:url(\''+f.src+'\')"':'')+'></div><span>'+esc(f.nom)+'</span></td>'
-      +'<td><select onchange="flLotChoisir('+i+',this.value)"><option value="">— aucun —</option>'+opts.map(o=>'<option value="'+esc(o.id)+'"'+(o.id===f.docId?' selected':'')+'>'+esc(o.titre||o.fichier)+'</option>').join('')+'</select></td>'
+      +'<td><select onchange="flLotChoisir('+i+',this.value)"><option value="">— aucun —</option><option value="*attente*"'+(f.docId==='*attente*'?' selected':'')+'>🕓 En attente : le flash arrivera dans la banque (même nom de fichier)</option>'+opts.map(o=>'<option value="'+esc(String(o.id))+'"'+(String(o.id)===String(f.docId)?' selected':'')+'>'+esc(o.titre||o.fichier)+'</option>').join('')+'</select></td>'
       +'<td class="small">'+esc(etat)+'</td></tr>'}).join('')+'</tbody></table>';
   if(btn){const n=flLot.fichiers.filter(f=>f.docId&&f.src&&!f.fait).length;btn.disabled=!n||flLot.enCours;btn.textContent=flLot.enCours?'⏳ Envoi en cours…':'📤 Envoyer '+n+' image'+(n>1?'s':'')}
 }
@@ -425,7 +453,7 @@ async function flLotFichiers(inp){
     const e={nom:f.name,docId:'',src:'',b64:'',mime:'image/jpeg',etat:'⏳ lecture…'};flLot.fichiers.push(e);flLotRendu();
     try{
       const img=/\.pdf$/i.test(f.name)?await flPdfPremierePage(f):await retexReduire(f);
-      e.src=img.src;e.b64=img.b64;e.mime=img.mime;const d=flReconnaitre(f.name);e.docId=d?d.id:'';e.etat='';
+      e.src=img.src;e.b64=img.b64;e.mime=img.mime;const d=flReconnaitre(f.name);e.docId=d?String(d.id):'*attente*';e.etat='';   // V3.9.4 : un PDF que la banque ne connaît pas encore est gardé « en attente »
     }catch(err){e.etat='❌ '+(err.message||'illisible')}
     flLotRendu();
   }
@@ -462,15 +490,17 @@ async function flLotEnvoyer(){
   /* V3.9.1 : trois images partent en même temps (au lieu d'une), et une erreur passagère de
      Google (« Page introuvable ») est réessayée deux fois avant d'être affichée en ❌ */
   const uneImage=async f=>{
-    const d=banqueFlashs().find(x=>x.id===f.docId);if(!d){f.etat='❌ flash inconnu';return}
-    const t=enrichissement(d);
+    const d=f.docId==='*attente*'?null:flashParId(f.docId);
+    if(!d&&f.docId!=='*attente*'){f.etat='❌ flash inconnu';return}
+    const t=d?enrichissement(d):(qhpThemes().find(x=>!x.banque&&x.fichier&&flNomNet(x.fichier)===flNomNet(f.nom))||null);
     if(t&&t.image&&!remplacer){f.etat='↷ passé (a déjà une image)';f.fait=true;passes++;flLotRendu();return}
     f.etat='⏳ envoi…';flLotRendu();
     try{
       const r=await appelRetente({secret:conf.secret,action:'flash-image',appareil:conf.appareil||'éditeur',data:{nom:f.nom.replace(/\.[^.]+$/,'')+'.jpg',mime:f.mime,b64:f.b64}},90000,2);
       if(!r||!r.ok||!r.id)throw new Error((r&&r.erreur)||'image refusée');
-      const o=Object.assign({},t||{id:'qt'+Date.now().toString(36)+(k++),titre:d.titre||d.fichier||'Flash',mois:'',video:'',note:'',quiz:[],actif:true},{maj:nowISO(),banque:d.id,flash:(t&&t.flash)||d.url||'',image:r.id});
-      if(!o.titre)o.titre=d.titre||d.fichier||'Flash';
+      const o=Object.assign({},t||{id:'qt'+Date.now().toString(36)+(k++),titre:d?(d.titre||d.fichier||'Flash'):f.nom.replace(/\.[^.]+$/,''),mois:'',video:'',note:'',quiz:[],actif:true},
+        {maj:nowISO(),banque:d?String(d.id):'',flash:(t&&t.flash)||(d&&d.url)||'',image:r.id,fichier:d?'':f.nom});
+      if(!o.titre)o.titre=d?(d.titre||d.fichier||'Flash'):f.nom;
       state.qhpThemes=(state.qhpThemes||[]).filter(x=>x.id!==o.id).concat([o]);save();
       f.etat='✅ envoyée';f.fait=true;n++;
     }catch(e){f.etat='❌ '+(e.message||'?')+' — relance « Envoyer » pour réessayer'}

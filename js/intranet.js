@@ -1,4 +1,4 @@
-const APP_VERSION='V3.9.3';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.9.4';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -578,6 +578,14 @@ async function chargerBanque(force){
    La page envoie la question et la liste des titres qu'elle a (rien de nominatif) ;
    le serveur de l'intranet interroge l'IA avec sa propre clé et rend les documents
    choisis, dans l'ordre, avec une courte raison. */
+/* V3.9.4 — l'IA traduit la question en mots du métier ; la page cherche elle-même (OU entre les mots,
+   classés par nombre de mots trouvés). Une centaine de jetons par question : plus d'erreur 413. */
+async function iaMots(q){const r=await appelRetente({action:'ia-mots',appareil:conf.appareil||'appareil',data:{q:q}},60000);return {mots:(r&&r.mots)||[],cache:!!(r&&r.cache)}}
+function iaClasser(docs,mots,foinDe){
+  const ms=mots.map(m=>bqNet(m)).filter(Boolean);
+  return docs.map(d=>{const foin=foinDe(d);let n=0;ms.forEach(m=>{if(bqCorrespond([m],foin))n++});return n?{d,n}:null}).filter(Boolean)
+    .sort((a,b)=>b.n-a.n||String(b.d.date||'').localeCompare(String(a.d.date||''))).map(x=>Object.assign({},x.d,{_ia:x.n+' mot'+(x.n>1?'s':'')+' sur '+ms.length}));
+}
 async function rechercheIA(q,docs){
   return appelRetente({action:'recherche-ia',appareil:conf.appareil||'appareil',data:{q:q,
     docs:docs.map(d=>({i:d.id,t:d.titre||d.fichier||'',y:bqTypeLib(d),s:d.secteur||'',d:String(d.date||'').slice(0,10),m:d.mots||''}))}},75000);
@@ -590,12 +598,12 @@ function chronoIAStart(){if(!chronoIA)chronoIA=setInterval(chronoIATick,1000)}
 async function bqLancerIA(){
   const q=((document.getElementById('bq-q')||{}).value||'').trim();
   if(q.length<3){toast('Écris d’abord ta question (3 lettres au moins)',true);return}
-  bqIA={q:q,ids:[],pq:{},enCours:true,err:'',debut:Date.now()};renderBanque();chronoIAStart();
-  try{const docs=banqueData().filter(d=>d.famille==='modeop');const r=await rechercheIA(q,docs);bqIA.ids=r.ids||[];bqIA.pq=r.pourquoi||{};bqIA.cache=!!r.cache;bqIA.duree=Math.round((Date.now()-bqIA.debut)/1000)}
+  bqIA={q:q,ids:[],pq:{},mots:[],enCours:true,err:'',debut:Date.now()};renderBanque();chronoIAStart();
+  try{const r=await iaMots(q);bqIA.mots=r.mots;bqIA.cache=r.cache;bqIA.duree=Math.round((Date.now()-bqIA.debut)/1000);if(!r.mots.length)bqIA.err='l’IA n’a pas compris la question'}
   catch(e){bqIA.err=e.message||'erreur'}
   finally{bqIA.enCours=false;renderBanque()}
 }
-function bqFinIA(){bqIA={q:'',ids:[],pq:{},enCours:false,err:''};renderBanque()}
+function bqFinIA(){bqIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''};const i=document.getElementById('bq-q');if(i)i.value='';bqTexte={q:'',ids:{},cherche:false};renderBanque()}
 function rafraichirBanque(){bqTexte={q:'',ids:{},cherche:false};chargerBanque(true)}
 
 /* Recherche dans le CONTENU : on ne dérange le serveur qu'après une petite
@@ -655,6 +663,13 @@ const SYNONYMES=[
   ['alcool','drogue','stupefiant','addiction','ethylotest'],
   ['sous traitant','sous traitance','plan de prevention','pdp','protocole','coactivite','entreprise exterieure'],
   ['vehicule','conduite','route','trajet','ceinture','telephone au volant','somnolence','permis']];
+/* V3.9.4 — les mots creux d'une phrase (« je cherche un flash sur la biodiversité ») ne comptent pas */
+const MOTS_CREUX=new Set(('je tu il on nous vous ils cherche cherches recherche voudrais veux aimerais trouve trouver montre montrer donne donner ai as a avoir etre est sont suis '+
+  'un une des le la les l du de d au aux et ou mais donc or ni car que qui quoi dont ce cet cette ces mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs '+
+  'sur sous dans en par pour avec sans chez vers entre contre pas plus moins tres tout tous toute toutes quel quelle quels quelles comment pourquoi quand '+
+  'flash flashs flashes document documents doc docs fiche fiches procedure procedures mode modes operatoire operatoires modop modops qhp theme sujet propos concernant '+
+  'il y faut faire est ce qu').split(' '));
+function bqMots(q){return bqNet(q).split(' ').filter(m=>m&&m.length>=2&&!MOTS_CREUX.has(m))}
 function bqRacine(m){m=String(m||'');if(m.length<5)return m;return m.replace(/(aux|eaux|ees|es|s|x|e)$/,'')}
 function bqProche(a,b){                       // une faute d'une lettre (ajout, oubli, remplacement ou inversion), mots d'au moins 5 lettres
   if(a===b)return true;if(Math.abs(a.length-b.length)>1||a.length<5)return false;
@@ -705,8 +720,7 @@ function bqDate(d){
 function renderBanque(){
   const box=document.getElementById('bq-liste');if(!box)return;
   const tous=banqueData();
-  const q=bqNet((document.getElementById('bq-q')||{}).value||'');
-  const mots=q?q.split(' ').filter(Boolean):[];
+  const mots=bqMots((document.getElementById('bq-q')||{}).value||'');
 
   /* les deux menus déroulants se remplissent avec ce qui existe vraiment */
   const dansFam=tous.filter(d=>!bqFiltre.fam||d.famille===bqFiltre.fam);
@@ -722,25 +736,26 @@ function renderBanque(){
 
   /* V3.5 : résultats de la recherche IA (tant que la question tapée n'a pas changé) */
   const qBrut=((document.getElementById('bq-q')||{}).value||'').trim();
-  const iaActive=bqIA.q&&bqIA.q===qBrut&&(bqIA.enCours||bqIA.ids.length||bqIA.err);
-  const list=(iaActive&&!bqIA.err)?bqIA.ids.map(id=>tous.find(d=>d.id===id)).filter(Boolean).map(d=>Object.assign({},d,{_ia:bqIA.pq[d.id]||''})):tous.filter(d=>{
+  const iaActive=!!(bqIA.q&&bqIA.q===qBrut&&(bqIA.enCours||(bqIA.mots||[]).length||bqIA.err));
+  const foinDe=d=>bqNet([d.titre,d.fichier,d.mots,bqSecond(d),BQ_FAMILLES[d.famille]?BQ_FAMILLES[d.famille].lib:'',d.dossier].join(' '));
+  const cadre=tous.filter(d=>{
     if(bqFiltre.fam&&d.famille!==bqFiltre.fam)return false;
     if(bqFiltre.sec&&bqSecond(d)!==bqFiltre.sec)return false;
     if(bqFiltre.an&&String(d.date||'').slice(0,4)!==bqFiltre.an)return false;
-    if(!mots.length)return true;
-    const foin=bqNet([d.titre,d.fichier,d.mots,bqSecond(d),BQ_FAMILLES[d.famille]?BQ_FAMILLES[d.famille].lib:'',d.dossier].join(' '));
-    if(bqCorrespond(mots,foin))return true;   // V3.9 : mot exact, synonyme, racine ou faute d'une lettre
-    return !!bqTexte.ids[d.id];               // trouvé dans le texte du document
-  }).map(d=>{
-    const foin=bqNet([d.titre,d.fichier,d.mots,bqSecond(d),BQ_FAMILLES[d.famille]?BQ_FAMILLES[d.famille].lib:'',d.dossier].join(' '));
-    const c=mots.length?bqCorrespond(mots,foin):1;
-    return Object.assign({},d,{_texte:!c,_elargi:c===2});
-  }).sort((a,b)=>((a._texte?2:a._elargi?1:0)-(b._texte?2:b._elargi?1:0))
+    return true});
+  let partiel=false;
+  const simple=()=>{
+    let l=cadre.filter(d=>!mots.length||bqCorrespond(mots,foinDe(d))||!!bqTexte.ids[d.id]);
+    if(!l.length&&mots.length>1){partiel=true;l=cadre.filter(d=>mots.some(m=>bqCorrespond([m],foinDe(d))))}   // V3.9.4 : aucun document avec TOUS les mots → ceux qui en ont certains
+    return l.map(d=>{const foin=foinDe(d);const c=mots.length?(partiel?(mots.filter(m=>bqCorrespond([m],foin)).length?2:0):bqCorrespond(mots,foin)):1;
+      return Object.assign({},d,{_texte:!c,_elargi:c===2,_n:partiel?mots.filter(m=>bqCorrespond([m],foin)).length:0})})};
+  const list=((iaActive&&!bqIA.err&&!bqIA.enCours)?iaClasser(cadre,bqIA.mots,foinDe):simple()).sort((a,b)=>(b._n||0)-(a._n||0)||((a._texte?2:a._elargi?1:0)-(b._texte?2:b._elargi?1:0))
     ||String(b.date||'').localeCompare(String(a.date||''))
     ||String(a.titre||'').localeCompare(String(b.titre||''),'fr'));
 
   let h='';
-  if(iaActive)h+='<div class="ia-band">✨ Recherche IA : « '+esc(bqIA.q)+' »'+(bqIA.enCours?' — <i>recherche en cours… <span data-chrono="'+(bqIA.debut||0)+'">0 s</span></i>':bqIA.err?' — ⚠️ '+esc(bqIA.err):' — '+bqIA.ids.length+' document'+(bqIA.ids.length>1?'s':'')+(bqIA.cache?' <span class="muted">(réponse mémorisée)</span>':bqIA.duree?' <span class="muted">('+bqIA.duree+' s)</span>':''))+' <button class="btn btn-ghost btn-sm" onclick="bqFinIA()">✕ Revenir à la recherche simple</button></div>';
+  if(iaActive)h+='<div class="ia-band">✨ Recherche IA : « '+esc(bqIA.q)+' »'+(bqIA.enCours?' — <i>l’IA réfléchit… <span data-chrono="'+(bqIA.debut||0)+'">0 s</span></i>':bqIA.err?' — ⚠️ '+esc(bqIA.err)+' <i>(résultats de la recherche simple ci-dessous)</i>':' → <b>'+bqIA.mots.map(esc).join('</b>, <b>')+'</b> — '+list.length+' document'+(list.length>1?'s':'')+(bqIA.cache?' <span class="muted">(réponse mémorisée)</span>':bqIA.duree?' <span class="muted">('+bqIA.duree+' s)</span>':''))+' <button class="btn btn-ghost btn-sm" onclick="bqFinIA()">✕ Effacer</button></div>';
+  else if(partiel)h+='<p class="hint">🔎 Aucun document ne contient tous ces mots : voici ceux qui en contiennent certains, les plus complets d’abord.</p>';
   else if(mots.length&&list.some(d=>d._elargi)){const el=bqElargissements(mots);if(el)h+='<p class="hint">🔎 Recherche élargie : '+el+'</p>'}
   if(banque.erreur)h+='<div class="secempty" style="border-color:rgba(194,43,34,.4);color:#C22B22">⚠️ '+esc(banque.erreur)+'</div>';
   else if(!banqueUrl())h+='<div class="secempty">🔌 La banque n’est pas encore branchée : l’adresse du service se colle une seule fois dans le fichier <b>config.js</b>, ligne <b>BANQUE_URL</b>. En attendant, seuls les liens ajoutés à la main s’affichent ici.</div>';

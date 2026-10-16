@@ -4,7 +4,7 @@
    (elles sont dans le stockage local de la page). Les appels au serveur Apps
    Script ne sont JAMAIS mis en cache. Mise à jour : réseau d'abord, cache en
    secours (une nouvelle version du dépôt est vue dès la connexion suivante). */
-const CACHE='ihse-v3-9-3';
+const CACHE='ihse-v3-9-4';
 const COQUILLE=['./','index.html','hse.html','config.js','css/intranet.css','css/hse.css','js/configuration.js','js/intranet.js','js/bulletin.js','js/terrain.js','js/qhp.js','js/retex.js','js/hse.js',
   'img/logo_cdes.png','img/bonhomme.png','img/mase_logo.png','img/mase_certificat.jpg','img/mascotte.png','img/picto_faits.png','img/picto_flashs.png'];
 /* V3.7.1 : à l'installation aussi, on contourne le cache HTTP (sinon, dans les 10 min qui
