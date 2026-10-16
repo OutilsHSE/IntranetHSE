@@ -348,11 +348,13 @@
   table.mensuel th.g-anim:not(.grp),table.mensuel td.g-anim{border-left:2px solid rgba(180,114,10,0.315)}
   table.mensuel th.g-arr:not(.grp),table.mensuel td.g-arr{border-left:2px solid rgba(169,232,198,.35)}
   table.mensuel th.g-env:not(.grp),table.mensuel td.g-env{border-left:2px solid rgba(196,166,240,.35)}
+  table.mensuel th.g-int:not(.grp),table.mensuel td.g-int{border-left:2px solid rgba(249,199,132,.5)}
   table.mensuel th.g-rh:not(.grp)~th.g-rh,table.mensuel td.g-rh~td.g-rh,
   table.mensuel th.g-acc:not(.grp)~th.g-acc,table.mensuel td.g-acc~td.g-acc,
   table.mensuel th.g-anim:not(.grp)~th.g-anim,table.mensuel td.g-anim~td.g-anim,
   table.mensuel th.g-arr:not(.grp)~th.g-arr,table.mensuel td.g-arr~td.g-arr,
-  table.mensuel th.g-env:not(.grp)~th.g-env,table.mensuel td.g-env~td.g-env{border-left:0}
+  table.mensuel th.g-env:not(.grp)~th.g-env,table.mensuel td.g-env~td.g-env,
+  table.mensuel th.g-int:not(.grp)~th.g-int,table.mensuel td.g-int~td.g-int{border-left:0}
   /* cases automatiques 🤖 */
   table.mensuel td.auto{color:#158A52;background:rgba(21,138,82,0.045)}
   table.mensuel td.auto i,table.mensuel td.journal i{font-style:normal;font-size:11px;margin-left:4px;opacity:.85}

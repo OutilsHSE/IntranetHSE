@@ -18,13 +18,18 @@ const BUL_MOIS_L=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Ao
 const BUL_MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 /* Seuils de couleur — PROVISOIRES, calés sur le bulletin de juin 2026 (à confirmer par le service HSE).
    Chaque entrée : [limite verte incluse, limite orange incluse] ; au-delà = rouge. null = pas de couleur. */
+/* V3.8 — seuils du service HSE (16/10/2026) : vert = 0 ; rouge au-delà de 5 AT avec arrêt
+   et de 50 jours d'arrêt ; orange entre les deux. Le reste à l'avenant : AT sans arrêt
+   comme les AT avec arrêt, bénins et trajet plus tolérants, Tf / Tg sur les repères BTP.
+   Intérim : 1 AT = rouge, sinon vert (pas d'orange). */
 const BUL_SEUILS={
-  accArret:[0,1], joursArret:[0,30], accSans:'zero', benins:'zero', tg:[0.5,1.5], tf:[10,25]
+  accArret:[0,5], joursArret:[0,50], accSans:[0,5], benins:[0,10], trajet:[0,2], tg:[0,1.5], tf:[0,25]
 };
-function bulCouleur(cle,v){
-  const s=BUL_SEUILS[cle]; if(!s||v===null||v===undefined||v==='')return '';
+const BUL_SEUILS_INT={ accArret:[0,0], joursArret:[0,0], accSans:[0,0], benins:[0,0], trajet:[0,0], tg:[0,0], tf:[0,0] };
+function bulCouleur(cle,v,interim){
+  const s=(interim?BUL_SEUILS_INT:BUL_SEUILS)[cle]; if(!s||v===null||v===undefined||v==='')return '';
   const n=Number(v); if(isNaN(n))return '';
-  if(s==='zero')return n===0?'vert':'';            // modèle de juin : 0 en vert, sinon pas de couleur
+  if(s==='zero')return n===0?'vert':'';
   return n<=s[0]?'vert':(n<=s[1]?'orange':'rouge');
 }
 function bulSmiley(pc,obj){ if(pc===null||pc===undefined||isNaN(pc))return ''; return pc>=obj?'🙂':(pc>=obj*0.8?'😐':'🙁'); }
@@ -132,7 +137,13 @@ function renderBulletin(){
        tg:heuresN?bulSomme(rN,'joursArret')*1000/heuresN:null, tf:heuresN?bulSomme(rN,'accArret')*1e6/heuresN:null, dispo:rN.length>0},
     P:{accArret:bulSomme(rP,'accArret'),joursArret:bulSomme(rP,'joursArret'),accSans:bulSomme(rP,'accSans'),benins:bulSomme(rP,'benins'),
        tg:heuresP?bulSomme(rP,'joursArret')*1000/heuresP:null, tf:heuresP?bulSomme(rP,'accArret')*1e6/heuresP:null, dispo:rP.length>0}};
-  const ipa=rep.interimParAn||{}, intN=ipa[an]||null; let intP=ipa[anP]||null, interimDispo=!!rep.interimParAn;
+  const ipa=rep.interimParAn||{}; let intN=ipa[an]?Object.assign({},ipa[an]):null, intP=ipa[anP]?Object.assign({},ipa[anP]):null, interimDispo=!!rep.interimParAn;
+  /* V3.8 : heures des intérimaires (colonne intHeures du mensuel) → Tf / Tg intérim ; les
+     jours d'arrêt intérim saisis au mensuel priment sur ceux des fiches quand ils existent */
+  const intH=(l)=>bulSomme(l,'intHeures'), intJ=(l)=>bulSomme(l,'intJoursArret');
+  const tauxInt=(o,l)=>{if(!o)return o;const h=intH(l);const j=intJ(l)||o.joursArret||0;o.heures=h;
+    o.tg=h?j*1000/h:null;o.tf=h?(o.accArret||0)*1e6/h:null;return o};
+  intN=tauxInt(intN,rN); intP=tauxInt(intP,rP);
   /* V3.3.2 : BILAN SAISI pour l'année précédente (zone HSE ▸ « Année précédente »).
      Quand le classeur n'a pas les mois de N-1 (reporting démarré en 2026), les
      totaux tapés à la main prennent la place de la colonne N-1 ; ils priment sur
@@ -144,7 +155,9 @@ function renderBulletin(){
       /* V3.3.4 : Tg / Tf tapés dans le bilan font foi ; sinon calcul depuis les heures */
       tg:(c.tg!==undefined&&c.tg!==''&&!isNaN(Number(c.tg)))?Number(c.tg):(hP?(Number(c.joursArret)||0)*1000/hP:null),
       tf:(c.tf!==undefined&&c.tf!==''&&!isNaN(Number(c.tf)))?Number(c.tf):(hP?(Number(c.accArret)||0)*1e6/hP:null), dispo:true, saisi:true};
-    if(bilanP.interim){const i=bilanP.interim;intP={accArret:Number(i.accArret)||0,joursArret:Number(i.joursArret)||0,accSans:Number(i.accSans)||0,benins:Number(i.benins)||0,trajet:Number(i.trajet)||0};interimDispo=true}
+    if(bilanP.interim){const i=bilanP.interim,hI=Number(i.heures)||0;intP={accArret:Number(i.accArret)||0,joursArret:Number(i.joursArret)||0,accSans:Number(i.accSans)||0,benins:Number(i.benins)||0,trajet:Number(i.trajet)||0,
+      tg:(i.tg!==undefined&&i.tg!==''&&!isNaN(Number(i.tg)))?Number(i.tg):(hI?(Number(i.joursArret)||0)*1000/hI:null),
+      tf:(i.tf!==undefined&&i.tf!==''&&!isNaN(Number(i.tf)))?Number(i.tf):(hI?(Number(i.accArret)||0)*1e6/hI:null)};interimDispo=true}
   }
   const js=joursSans(), da=dernierArret(), rec=bulRecordJours(rep.atArretDates);
   const agLib=agenceChoisie?((agencesDispo().find(x=>x.code===agenceChoisie)||{}).lib||agenceChoisie):'CDES — toutes agences';
@@ -172,7 +185,7 @@ function renderBulletin(){
       +'</div></div>';
   }
   /* ---- AT : carte claire, deux chiffres côte à côte ---- */
-  const atCls=cdes.N.accArret===0?'vert':(cdes.N.accArret===1?'orange':'rouge'), jsCls=js===null?'':(js>=100?'vert':(js>=30?'orange':'rouge'));
+  const atCls=bulCouleur('accArret',cdes.N.accArret)||'rouge', jsCls=js===null?'':(js>=100?'vert':(js>=30?'orange':'rouge'));
   h+='<div class="bul-card bul-at'+(faits||estEditeur()?'':' large')+'">'
     +'<div class="bul-at-b"><div class="bul-at-k">AT avec arrêt depuis le 1<sup>er</sup> janvier '+esc(an)+'</div>'
     +'<div class="bul-at-v '+atCls+'">'+(cdes.N.dispo?cdes.N.accArret:'—')+(cdes.P.dispo?bulTend(cdes.N.accArret,bulSomme(bulAnnee(rows,anP,anP+bulMois.slice(4)),'accArret'),false,''):'')+'</div>'
@@ -189,15 +202,18 @@ function renderBulletin(){
     +'<tr><th>CDES</th><th class="int">Intérim</th><th>CDES</th><th class="int">Intérim</th></tr></thead><tbody>';
   L.forEach(([lib,c,dec])=>{
     const vP=cdes.P.dispo?cdes.P[c]:null, vN=cdes.N.dispo?cdes.N[c]:null;
-    const iP=intP&&c!=='tg'&&c!=='tf'?intP[c]:(interimDispo&&c!=='tg'&&c!=='tf'&&cdes.P.dispo?0:null);
-    const iN=intN&&c!=='tg'&&c!=='tf'?intN[c]:(interimDispo&&c!=='tg'&&c!=='tf'&&cdes.N.dispo?0:null);
+    const estTaux=(c==='tg'||c==='tf');
+    /* V3.8 : Tf / Tg intérim quand les heures intérim sont connues (mensuel ou bilan N-1) */
+    const iP=intP?(estTaux?(intP[c]===null||intP[c]===undefined?null:intP[c]):intP[c]):(interimDispo&&!estTaux&&cdes.P.dispo?0:null);
+    const iN=intN?(estTaux?(intN[c]===null||intN[c]===undefined?null:intN[c]):intN[c]):(interimDispo&&!estTaux&&cdes.N.dispo?0:null);
     h+='<tr><th>'+esc(lib)+'</th>'
-      +'<td class="'+bulCouleur(c,vP)+'">'+bulNum(vP,dec)+'</td><td class="int '+bulCouleur(c,iP)+'">'+(iP===null?'—':bulNum(iP,0))+'</td>'
-      +'<td class="'+bulCouleur(c,vN)+'">'+bulNum(vN,dec)+'</td><td class="int '+bulCouleur(c,iN)+'">'+(iN===null?'—':bulNum(iN,0))+'</td></tr>';
+      +'<td class="'+bulCouleur(c,vP)+'">'+bulNum(vP,dec)+'</td><td class="int '+bulCouleur(c,iP,true)+'">'+(iP===null?'—':bulNum(iP,dec))+'</td>'
+      +'<td class="'+bulCouleur(c,vN)+'">'+bulNum(vN,dec)+'</td><td class="int '+bulCouleur(c,iN,true)+'">'+(iN===null?'—':bulNum(iN,dec))+'</td></tr>';
   });
   h+='</tbody></table></div><p class="hint">'+esc(an)+' : cumul au '+esc(bulLib(bulMois).toLowerCase())+' · '+esc(anP)+' : année entière'+(cdes.P.saisi?' (bilan saisi par le service HSE)':'')+'. '
     +'Tg = jours d’arrêt × 1 000 / heures · Tf = AT avec arrêt × 10⁶ / heures.'
-    +(interimDispo?' Intérim : AT dont la catégorie du collaborateur est « intérimaire ».':' Colonne Intérim : disponible après la nouvelle version du script.')+'</p></div>';
+    +(interimDispo?' Intérim : AT dont la catégorie du collaborateur est « intérimaire » ; Tf / Tg intérim dès que les heures intérim sont saisies dans le mensuel (colonnes Intérimaires).':' Colonne Intérim : disponible après la nouvelle version du script.')
+    +' Couleurs : vert = 0 · rouge au-delà de 5 AT avec arrêt ou 50 jours d’arrêt · intérim : rouge dès 1.</p></div>';
 
   /* ---- Vigiminutes ---- */
   const objV=Number(kpiVal('vigi.objPart'))||80;
@@ -271,6 +287,7 @@ function renderBulletin(){
   h+='<div class="bul-card bul-flash">'+bulPicto('picto_flashs','⚡')+'<div class="bul-faits-corps"><h3>Flashs '+(bulPeriode==='annee'?'de l’année':(flM.length?'mensuels':'récents'))+'</h3>'
     +(flA.length?'<ul>'+flA.map(f=>'<li><b>'+esc(bulNature(f.nature))+'</b> : '+esc(f.intitule||'—')+((flM.length&&bulPeriode!=='annee')?'':' <span class="muted">('+esc(BUL_MOIS_C[Number(String(f.date).slice(5,7))-1])+')</span>')+'</li>').join('')+'</ul>'
       :'<p class="muted">Aucun flash enregistré'+(rep.flashs?' pour '+esc(bulLib(bulMois).toLowerCase()):' (nouvelle version du script nécessaire)')+'.</p>')
+    +(typeof flashsDuMois==='function'?'<button class="btn btn-primary btn-sm no-print" style="margin-top:8px" onclick="flashsDuMois()">⚡ Ouvrir les flashs du mois</button>':'')   // V3.5.1
     +'</div></div>';
   h+='<div class="bul-card bul-masc"><img src="img/mascotte.png" alt="Mascotte CDES" onerror="var c=this.closest(\'.bul-masc\');if(c){c.remove();var f=document.querySelector(\'.bul-flash\');if(f)f.classList.add(\'large\')}"></div>';
   h+='<div class="bul-card bul-mase">'+(typeof carteMase==='function'?carteMase():'')+'</div>';

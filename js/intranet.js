@@ -1,4 +1,4 @@
-const APP_VERSION='V3.3.6';   // 15/10/2026 — Reporting : plus de redessin si la synchro n'apporte rien ; fichiers toujours à jour ; brique Analyse d'accident
+const APP_VERSION='V3.8';   // 16/10/2026 — intérimaires (colonnes du mensuel, Tf/Tg intérim, tuiles), seuils de couleur ; + V3.7.1 revue, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -517,7 +517,9 @@ const BQ_FAMILLES={flash:{lib:'Flash Santé-Sécurité',court:'Flashs',ico:'📣
 /* Le code couleur des flashs, celui des supports eux-mêmes. */
 const BQ_TYPES={ataa:{lib:'AT avec arrêt',c:'#C22B22'},atsa:{lib:'AT sans arrêt',c:'#C25A08'},
                 presqu:{lib:'Presqu’accident',c:'#C25A08'},sd:{lib:'Situation dangereuse',c:'#B4720A'},
-                prev:{lib:'Prévention',c:'#1F6FB2'},env:{lib:'Environnement',c:'#158A52'}};
+                prev:{lib:'Prévention',c:'#1F6FB2'},env:{lib:'Environnement',c:'#158A52'},
+                /* V3.3.7 : types de la convention CDES servis par la Banque V3 (BP, RETEX AT) */
+                bp:{lib:'Bonne pratique',c:'#158A52'},at:{lib:'Accident du travail',c:'#C25A08'}};
 const DEMO_BANQUE=[
  {id:'f1',famille:'flash',type:'ataa',titre:'Écrasement de la main lors d’un levage',date:'2026-07',fichier:'2026-07 FLASH ATAA - Ecrasement de la main lors d un levage.pdf',url:'#',mots:'levage, main, élingue'},
  {id:'f2',famille:'flash',type:'prev',titre:'Règle qui sauve n°2 — opérations de levage',date:'2026-05',fichier:'2026-05 FLASH RQS2 - Operations de levage.pdf',url:'#',mots:'ligne de tir'},
@@ -529,7 +531,7 @@ const DEMO_BANQUE=[
 
 let banque={docs:[],charge:false,enCours:false,erreur:'',erreurs:[],quand:''};
 let bqTexte={q:'',ids:{},cherche:false};
-let bqFiltre={fam:'',sec:'',an:''};
+let bqFiltre={fam:'modeop',sec:'',an:''};   // V3.5 : l'écran Documents = les modes opératoires ; les flashs sont dans l'Espace QHP
 let bqTimer=null;
 
 function banqueUrl(){return CONFIG.BANQUE_URL||''}
@@ -565,11 +567,31 @@ async function chargerBanque(force){
     banque.docs=(j.data&&j.data.docs)||[];
     banque.erreurs=(j.data&&j.data.erreurs)||[];
     banque.quand=j.heure||nowISO();banque.charge=true;
+    banque.texteDispo=!(j.data&&j.data.texteDispo===false);           // Banque V3 (SharePoint) : pas de recherche dans le texte
   }catch(e){
     banque.erreur=(e&&e.name==='AbortError')?'Le service de la banque ne répond pas (délai dépassé)'
       :('Banque injoignable — '+(e&&e.message||'vérifie l’adresse dans config.js'));
-  }finally{banque.enCours=false;renderBanque()}
+  }finally{banque.enCours=false;renderBanque();
+    try{if(document.getElementById('v-qhp').classList.contains('active')&&typeof renderQhp==='function')renderQhp()}catch(e){}}
 }
+/* ---------- V3.5 — RECHERCHE IA (flashs et modes opératoires) ----------
+   La page envoie la question et la liste des titres qu'elle a (rien de nominatif) ;
+   le serveur de l'intranet interroge l'IA avec sa propre clé et rend les documents
+   choisis, dans l'ordre, avec une courte raison. */
+async function rechercheIA(q,docs){
+  return appel({action:'recherche-ia',appareil:conf.appareil||'appareil',data:{q:q,
+    docs:docs.map(d=>({i:d.id,t:d.titre||d.fichier||'',y:bqTypeLib(d),s:d.secteur||'',d:String(d.date||'').slice(0,10),m:d.mots||''}))}},45000);
+}
+let bqIA={q:'',ids:[],pq:{},enCours:false,err:''};
+async function bqLancerIA(){
+  const q=((document.getElementById('bq-q')||{}).value||'').trim();
+  if(q.length<3){toast('Écris d’abord ta question (3 lettres au moins)',true);return}
+  bqIA={q:q,ids:[],pq:{},enCours:true,err:''};renderBanque();
+  try{const docs=banqueData().filter(d=>d.famille==='modeop');const r=await rechercheIA(q,docs);bqIA.ids=r.ids||[];bqIA.pq=r.pourquoi||{}}
+  catch(e){bqIA.err=e.message||'erreur'}
+  finally{bqIA.enCours=false;renderBanque()}
+}
+function bqFinIA(){bqIA={q:'',ids:[],pq:{},enCours:false,err:''};renderBanque()}
 function rafraichirBanque(){bqTexte={q:'',ids:{},cherche:false};chargerBanque(true)}
 
 /* Recherche dans le CONTENU : on ne dérange le serveur qu'après une petite
@@ -577,7 +599,7 @@ function rafraichirBanque(){bqTexte={q:'',ids:{},cherche:false};chargerBanque(tr
 function bqChercheTexte(q){
   if(bqTimer)clearTimeout(bqTimer);
   const t=String(q||'').trim();
-  if(t.length<3||!banqueUrl()){bqTexte={q:'',ids:{},cherche:false};return}
+  if(t.length<3||!banqueUrl()||banque.texteDispo===false){bqTexte={q:'',ids:{},cherche:false};return}
   if(bqTexte.q===t)return;
   bqTimer=setTimeout(async()=>{
     bqTexte={q:t,ids:{},cherche:true};renderBanque();
@@ -603,8 +625,12 @@ function bqSetAn(v){bqFiltre.an=v;renderBanque()}
 function bqNet(v){return String(v==null?'':v).toLowerCase()
   .replace(/[àâä]/g,'a').replace(/[éèêë]/g,'e').replace(/[îï]/g,'i').replace(/[ôö]/g,'o')
   .replace(/[ûùü]/g,'u').replace(/ç/g,'c').replace(/[’']/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
-function bqSecond(d){return d.famille==='flash'?(BQ_TYPES[d.type]?BQ_TYPES[d.type].lib:'Non typé')
+/* Le filtre « secteur » : pour un flash, le secteur servi par la Banque V3 (Général ·
+   Fret fluvial · Bathymétrie · Atelier) ; sans lui, le type. Pour un mode opératoire,
+   le domaine. Le TYPE d'un flash reste la pastille de couleur. */
+function bqSecond(d){return d.famille==='flash'?(d.secteur||(BQ_TYPES[d.type]?BQ_TYPES[d.type].lib:'Non typé'))
                                                :(d.activite||'Général')}
+function bqTypeLib(d){return d.famille==='flash'?(BQ_TYPES[d.type]?BQ_TYPES[d.type].lib:'Flash'):(d.activite||'Mode opératoire')}
 function bqCouleur(d){return d.famille==='flash'?((BQ_TYPES[d.type]||{}).c||'#7b8fa3'):'#1F6FB2'}
 /* « 2026-07 » se lit « juil. 2026 » ; une date complète garde son jour. */
 function bqDate(d){
@@ -624,14 +650,17 @@ function renderBanque(){
   const seconds=[...new Set(dansFam.map(bqSecond))].sort((a,b)=>a.localeCompare(b,'fr'));
   const annees=[...new Set(tous.map(d=>String(d.date||'').slice(0,4)).filter(Boolean))].sort().reverse();
   const selS=document.getElementById('bq-sec');
-  if(selS)selS.innerHTML='<option value="">'+(bqFiltre.fam==='flash'?'Tous les types':bqFiltre.fam==='modeop'?'Toutes les activités':'Type ou activité')+'</option>'
+  if(selS)selS.innerHTML='<option value="">'+(bqFiltre.fam==='flash'?'Tous les secteurs':bqFiltre.fam==='modeop'?'Tous les domaines':'Secteur ou domaine')+'</option>'
     +seconds.map(s=>'<option'+(bqFiltre.sec===s?' selected':'')+'>'+esc(s)+'</option>').join('');
   const selA=document.getElementById('bq-an');
   if(selA)selA.innerHTML='<option value="">Toutes les années</option>'
     +annees.map(a=>'<option'+(bqFiltre.an===a?' selected':'')+'>'+esc(a)+'</option>').join('');
   document.querySelectorAll('.bqfam').forEach(b=>{b.classList.toggle('on',b.dataset.f===bqFiltre.fam)});
 
-  const list=tous.filter(d=>{
+  /* V3.5 : résultats de la recherche IA (tant que la question tapée n'a pas changé) */
+  const qBrut=((document.getElementById('bq-q')||{}).value||'').trim();
+  const iaActive=bqIA.q&&bqIA.q===qBrut&&(bqIA.enCours||bqIA.ids.length||bqIA.err);
+  const list=iaActive?bqIA.ids.map(id=>tous.find(d=>d.id===id)).filter(Boolean).map(d=>Object.assign({},d,{_ia:bqIA.pq[d.id]||''})):tous.filter(d=>{
     if(bqFiltre.fam&&d.famille!==bqFiltre.fam)return false;
     if(bqFiltre.sec&&bqSecond(d)!==bqFiltre.sec)return false;
     if(bqFiltre.an&&String(d.date||'').slice(0,4)!==bqFiltre.an)return false;
@@ -647,6 +676,7 @@ function renderBanque(){
     ||String(a.titre||'').localeCompare(String(b.titre||''),'fr'));
 
   let h='';
+  if(iaActive)h+='<div class="ia-band">✨ Recherche IA : « '+esc(bqIA.q)+' »'+(bqIA.enCours?' — <i>recherche en cours…</i>':bqIA.err?' — ⚠️ '+esc(bqIA.err):' — '+bqIA.ids.length+' document'+(bqIA.ids.length>1?'s':''))+' <button class="btn btn-ghost btn-sm" onclick="bqFinIA()">✕ Revenir à la recherche simple</button></div>';
   if(banque.erreur)h+='<div class="secempty" style="border-color:rgba(194,43,34,.4);color:#C22B22">⚠️ '+esc(banque.erreur)+'</div>';
   else if(!banqueUrl())h+='<div class="secempty">🔌 La banque n’est pas encore branchée : l’adresse du service se colle une seule fois dans le fichier <b>config.js</b>, ligne <b>BANQUE_URL</b>. En attendant, seuls les liens ajoutés à la main s’affichent ici.</div>';
   (banque.erreurs||[]).forEach(e=>{h+='<div class="secempty" style="margin-top:8px">⚠️ '+esc(e)+'</div>'});
@@ -670,10 +700,12 @@ function renderBanque(){
                 d.ko?Math.max(1,Math.round(d.ko/1024*10)/10)+' Mo':''].filter(Boolean);
     h+='<div class="bqdoc" style="border-left-color:'+coul+'">'+
        '<div class="bqmain">'+
-         '<div class="bqbadges"><span class="bqb" style="background:'+coul+'">'+esc(bqSecond(d))+'</span>'+
+         '<div class="bqbadges"><span class="bqb" style="background:'+coul+'">'+esc(bqTypeLib(d))+'</span>'+
+         (d.famille==='flash'&&d.secteur&&d.secteur!=='Général'?'<span class="bqf">'+esc(d.secteur)+'</span>':'')+
          '<span class="bqf">'+fam.ico+' '+esc(fam.lib)+'</span>'+
          (d._texte?'<span class="bqf bqtxt">📄 trouvé dans le texte</span>':'')+'</div>'+
          '<div class="bqt">'+esc(d.titre||d.fichier||'Sans titre')+'</div>'+
+         (d._ia?'<div class="bqia">✨ '+esc(d._ia)+'</div>':'')+
          '<div class="bqm">'+esc(meta.join(' · '))+(d.mots?' · <i>'+esc(d.mots)+'</i>':'')+'</div>'+
        '</div><div class="bqact">'+lien+src+edit+'</div></div>';
   });
@@ -838,17 +870,31 @@ function renderDash(){
         const tSans=(periode==='mois')?C('accSans'):S('accSans');
         const sufT=(periode==='mois')?' — cumulé à fin '+moisLabel(cur.k).toLowerCase():' — année';
         const t=(v,l,cls)=>'<div class="kpi '+(cls||'')+'"><div class="v">'+(v===undefined?'—':Number(v).toLocaleString('fr-FR'))+'</div><div class="l">'+esc(l+suf)+'</div><div class="m">🤖 reporting central</div></div>';
-        h+=t(src.accArret,'AT avec arrêt',Number(src.accArret)>0?'bad':'good');
-        h+=t(src.accSans,'AT sans arrêt');
-        h+=t(src.benins,'AT bénins / soins');
-        h+=t(src.trajet,'AT de trajet');
-        h+=t(src.joursArret,'Jours d’arrêt');
+        /* V3.8 : seuils du service HSE — vert = 0, rouge au-delà de 5 AT avec arrêt / 50 jours d'arrêt, orange entre */
+        const seuil=(v,r)=>{v=Number(v)||0;return v===0?'good':(v>r?'bad':'moyen')};
+        h+=t(src.accArret,'AT avec arrêt',seuil(src.accArret,5));
+        h+=t(src.accSans,'AT sans arrêt',seuil(src.accSans,5));
+        h+=t(src.benins,'AT bénins / soins',seuil(src.benins,10));
+        h+=t(src.trajet,'AT de trajet',seuil(src.trajet,2));
+        h+=t(src.joursArret,'Jours d’arrêt',seuil(src.joursArret,50));
         const zn=rep.zones||{};
         if(zn.hipo!==undefined)
           h+='<div class="kpi '+(zn.hipo>0?'bad':'good')+'"><div class="v">'+zn.hipo+'</div><div class="l">Événements à haut potentiel (HIPO) — année</div><div class="m">🤖 fiches d’incident</div></div>';
         const cg=zn.categories;
         if(cg&&(cg.externes>0||zn.total>0))
           h+='<div class="kpi '+(cg.externes>0?'bad':'good')+'"><div class="v">'+(cg.externes||0)+'</div><div class="l">Dont intérimaires / sous-traitants — année</div><div class="m">'+(cg.externes>0?(cg.interim||0)+' intérim · '+(cg.soustraitant||0)+' sous-traitance':'🤖 fiches d’incident')+'</div></div>';
+        /* V3.8 : AT des intérimaires (année) + Tf / Tg intérim cumulés quand les heures intérim sont saisies au mensuel.
+           Règle du service HSE : 1 AT intérimaire = rouge, 0 = vert. */
+        const ipa=(rep.interimParAn||{})[String(cur.k).slice(0,4)]||null;
+        const iAcc=ipa?(Number(ipa.accArret)||0):(S('intAccArret')||0), iSans=ipa?(Number(ipa.accSans)||0):(S('intAccSans')||0);
+        const iH=(periode==='mois')?C('intHeures'):S('intHeures'), iAccC=(periode==='mois')?C('intAccArret'):S('intAccArret'), iJ=(periode==='mois')?C('intJoursArret'):S('intJoursArret');
+        if(rep.interimParAn||iH>0){
+          h+='<div class="kpi '+(iAcc>0?'bad':'good')+'"><div class="v">'+iAcc+'</div><div class="l">AT avec arrêt — intérimaires — année</div><div class="m">'+(iSans?iSans+' sans arrêt · ':'')+'🤖 fiches d’incident (catégorie intérimaire)</div></div>';
+          if(iH>0){
+            h+='<div class="kpi '+(iAccC>0?'bad':'good')+'"><div class="v">'+String((Math.round(iAccC*1e6/iH*10)/10)).replace('.',',')+'</div><div class="l">Tf intérim'+esc(sufT)+'</div><div class="m">'+iH.toLocaleString('fr-FR')+' h intérim</div></div>';
+            h+='<div class="kpi '+(iJ>0?'bad':'good')+'"><div class="v">'+String((Math.round(iJ*1000/iH*100)/100)).replace('.',',')+'</div><div class="l">Tg intérim'+esc(sufT)+'</div><div class="m">'+iJ.toLocaleString('fr-FR')+' jour'+(iJ>1?'s':'')+' d’arrêt intérim</div></div>';
+          }
+        }
         if(tHeures>0){
           h+='<div class="kpi"><div class="v">'+String((Math.round(tAcc*1e6/tHeures*10)/10)).replace('.',',')+'</div><div class="l">Taux de fréquence (TF1)'+esc(sufT)+'</div>'+
              (periode==='mois'?'<div class="m">cumul janvier → '+esc(moisLabel(cur.k).toLowerCase())+'</div>':'')+'</div>';
@@ -1974,7 +2020,8 @@ function appliquer(d){
   if(Array.isArray(d.retex))state.retex=d.retex;                    // V3.3.3
   if(Array.isArray(d.qhpThemes))state.qhpThemes=d.qhpThemes;        // V3.3 p3
   if(d.tombQhpThemes&&typeof d.tombQhpThemes==='object')state.tombQhpThemes=d.tombQhpThemes;
-  if(d.todo&&typeof d.todo==='object')state.todo=d.todo;             // V3.3 (éditeur)
+  if(d.todo&&typeof d.todo==='object')state.todo=d.todo;
+  if(d.oublis&&typeof d.oublis==='object')state.oublis=d.oublis;   // V3.6 (éditeur)             // V3.3 (éditeur)
   if(Array.isArray(d.modeop))state.modeop=d.modeop;
   if(d.liens&&typeof d.liens==='object'&&!Array.isArray(d.liens))liensOutils=d.liens;   // V28 — en mémoire seulement
   if(typeof d.expireJours==='number'){conf.expireJours=d.expireJours;saveConfLS()}        // V28.3
@@ -2002,6 +2049,7 @@ async function syncOuLecture(manuel){
   if(!webhookLecture()){if(manuel)toast('Renseigne d’abord l’adresse du webhook',true);return false}
   if(syncEnCours)return false;
   syncEnCours=true;syncEtat('⏳ Synchronisation…','muted');
+  chargement(true);
   try{
     let j;
     if(conf.webhook&&conf.secret){
@@ -2031,7 +2079,20 @@ async function syncOuLecture(manuel){
     syncEtat('⚠️ '+(e.message||'échec'),'muted');
     if(manuel)toast('Échec : '+(e.message||'?'),true);
     return false}
-  finally{syncEnCours=false}}
+  finally{syncEnCours=false;chargement(false)}}
+/* V3.4 — SABLIER. Tant qu'il n'y a encore rien à montrer (première ouverture, appareil
+   qui vient d'être déverrouillé), un sablier plein écran dit que ça charge. Ensuite,
+   seule la pastille 🔄 tourne pendant la mise à jour : on peut lire et travailler. */
+function aDesDonnees(){return !!(repAuto||qhpAuto||(state.arrivants&&state.arrivants.length)||(state.remontees&&state.remontees.length))}
+function chargement(on){
+  const pill=document.getElementById('sync-pill');if(pill)pill.classList.toggle('tourne',!!on);
+  let s=document.getElementById('sablier');
+  if(on&&!aDesDonnees()&&!document.body.classList.contains('verrouille')){
+    if(!s){s=document.createElement('div');s.id='sablier';s.setAttribute('role','status');
+      s.innerHTML='<div class="sab-box"><div class="sab-rond" aria-hidden="true"></div><b>Chargement des données…</b><span>Première ouverture sur cet appareil : quelques secondes.</span></div>';
+      document.body.appendChild(s)}
+  }else if(!on&&s)s.remove();
+}
 function syncAuto(){
   if(!(conf.webhook&&conf.secret)||conf.autoSync===false)return;
   clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncOuLecture(false),2500)}
@@ -2164,7 +2225,7 @@ function lancerSynchros(){
   if(synchrosLancees||!webhookLecture())return;
   synchrosLancees=true;
   const pill=document.getElementById('sync-pill'); if(pill)pill.style.display='';
-  setTimeout(()=>syncOuLecture(false),600);
+  setTimeout(()=>syncOuLecture(false),50);          // V3.4 : sans attendre
   setInterval(()=>{if(!document.hidden)syncOuLecture(false)},300000);
   window.addEventListener('online',()=>syncOuLecture(false));
 }

@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.3.6';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
+const APP_VERSION = 'V3.8';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -210,7 +210,8 @@ function moisLigne(k,ag){
 const COLS_SOMME=['heures','effectif','accArret','accSans','benins','trajet','joursArret','mp',
   'vmsAuto','vmsMan','vms','vmsCd','vmsAd','dechetsT','accueilsAuto','accueilsMan','accueils','accueilsEmb','accueilsInt',
   'arrivants','interimaires','visites',
-  'vigiAtt','vigiRecu','qhpEff','qhpPart','formationsAuto','formationsMan','formations'];
+  'vigiAtt','vigiRecu','qhpEff','qhpPart','formationsAuto','formationsMan','formations',
+  'intHeures','intEffectif','intAccArret','intAccSans','intBenins','intTrajet','intJoursArret'];   // V3.8 intérimaires
 /* vue Global d'un mois : la somme des agences, calculée, jamais stockée */
 function moisSomme(k){
   const l=state.mensuel.filter(x=>x.k===k);
@@ -403,6 +404,7 @@ let VIGI_AUTO='2026-07';           // à partir de ce mois, les Vigiminutes vien
 const GROUPES=[
   {id:'rh',   t:'Indicateurs',        c:'#74ccef'},
   {id:'acc',  t:'Accidentologie',     c:'#ff8f85'},
+  {id:'int',  t:'Intérimaires',       c:'#f9c784'},
   {id:'anim', t:'Animation HSE',      c:'#ffcf5c'},
   {id:'arr',  t:'Nouveaux arrivants', c:'#a9e8c6'},
   {id:'env',  t:'Environnement',      c:'#c4a6f0'}
@@ -412,6 +414,16 @@ const COLS=[
   {k:'accArret',t:'AT avec arrêt',g:'acc',journal:true},{k:'accSans',t:'AT sans arrêt',g:'acc',journal:true},
   {k:'benins',t:'AT bénins',g:'acc',journal:true},{k:'trajet',t:'AT trajet',g:'acc',journal:true},
   {k:'joursArret',t:'Jours d’arrêt',g:'acc'},{k:'mp',t:'Maladies pro',g:'acc',defaut:0},
+  /* V3.8 : taux cumulés depuis janvier (un taux sur un seul mois n'a pas de sens) */
+  {k:'tf',t:'Tf',tt:'Taux de fréquence cumulé depuis janvier = AT avec arrêt × 10⁶ / heures',g:'acc',taux:['accArret','heures',1e6,1],petit:true},
+  {k:'tg',t:'Tg',tt:'Taux de gravité cumulé depuis janvier = jours d’arrêt × 1 000 / heures',g:'acc',taux:['joursArret','heures',1000,2],petit:true},
+  /* V3.8 : intérimaires — AT comptés depuis le journal (catégorie « intérimaire »), le reste saisi */
+  {k:'intHeures',t:'Heures intérim',g:'int',large:true},{k:'intEffectif',t:'Personnes différentes',tt:'Intérimaires différents présents dans le mois',g:'int'},
+  {k:'intAccArret',t:'AT avec arrêt',g:'int',journal:true},{k:'intAccSans',t:'AT sans arrêt',g:'int',journal:true},
+  {k:'intBenins',t:'AT bénins',g:'int',journal:true},{k:'intTrajet',t:'AT trajet',g:'int',journal:true},
+  {k:'intJoursArret',t:'Jours d’arrêt',g:'int'},
+  {k:'intTf',t:'Tf intérim',tt:'Taux de fréquence intérim cumulé depuis janvier = AT avec arrêt intérim × 10⁶ / heures intérim',g:'int',taux:['intAccArret','intHeures',1e6,1],petit:true},
+  {k:'intTg',t:'Tg intérim',tt:'Taux de gravité intérim cumulé depuis janvier = jours d’arrêt intérim × 1 000 / heures intérim',g:'int',taux:['intJoursArret','intHeures',1000,2],petit:true},
   {k:'qhpEff',t:'QHP effectif',g:'anim',auto:'bascule'},{k:'qhpPart',t:'QHP participants',g:'anim',auto:'bascule'},
   {k:'pq',t:'% QHP',g:'anim',calc:['qhpPart','qhpEff']},
   {k:'vigiAtt',t:'Vigi. attendues',g:'anim',auto:'vigi'},{k:'vigiRecu',t:'Vigi. reçues',g:'anim',auto:'vigi'},
@@ -430,11 +442,11 @@ const COLS=[
   {k:'dechetsT',t:'Déchets (t)',g:'env'},{k:'dechetsVal',t:'Valorisé (%)',g:'env'}
 ];
 // compatibilité : COLM = colonnes saisissables, COLM_AUTO = colonnes qui viennent des outils
-const COLM=COLS.filter(c=>!c.calc&&!c.total&&!c.auto), COLM_AUTO=COLS.filter(c=>c.auto||c.total);
+const COLM=COLS.filter(c=>!c.calc&&!c.total&&!c.auto&&!c.taux), COLM_AUTO=COLS.filter(c=>c.auto||c.total);
 function debutAuto(c){return c.auto==='vigi'?VIGI_AUTO:BASCULE}
 /* ce que la case (colonne × mois) est : 'calc' · 'total' · 'auto' (🤖) · 'saisie' */
 function modeCase(c,mk){
-  if(c.calc)return 'calc';
+  if(c.calc||c.taux)return 'calc';
   if(c.total)return 'total';
   if(c.journal)return apresBascule(mk)?'auto':'saisie';
   if(c.auto)return String(mk).slice(0,7)>=debutAuto(c)?'auto':'saisie';
@@ -467,6 +479,11 @@ const NOTES_COL = [
   [['joursArret'],{src:'Saisie',txt:'Le journal donne les jours d’arrêt par accident, pas par mois : à saisir (un arrêt qui court sur plusieurs mois se répartit à la main).',
     doute:{id:'jours-double',txt:'Avril→juin affichaient le double (40 / 62 / 60) : une ligne « sans agence » de l’ancien format s’ajoutait à la ligne IDF dans le Global. Ces lignes sont maintenant versées dans IDF — vérifie que tu retrouves 20 / 31 / 30.'}}],
   [['mp'],{src:'Saisie',txt:'0 par défaut chaque mois. Affiché dans Santé sur l’intranet.'}],
+  [['tf','tg'],{src:'Calcul — cumulé depuis janvier',txt:'Tf = AT avec arrêt × 10⁶ / heures · Tg = jours d’arrêt × 1 000 / heures. Un taux calculé sur un seul mois n’a pas de sens : chaque ligne cumule janvier → ce mois. Ces AT comptent tout le monde, intérimaires compris ; les heures sont celles de la colonne Heures travaillées.'}],
+  [['intHeures','intEffectif','intJoursArret'],{src:'Saisie',txt:'Heures travaillées par les intérimaires dans le mois, nombre d’intérimaires différents présents, jours d’arrêt des AT d’intérimaires. Nécessaires au Tf / Tg intérim.'}],
+  [['intAccArret','intAccSans','intBenins','intTrajet'],{src:'Journal d’analyses d’accident — fiches dont la catégorie est « intérimaire »',dep:'sept. 2026',
+    txt:'Sous-ensemble des colonnes Accidentologie : un AT d’intérimaire compte dans les deux. Comptés par mois et par agence depuis la bascule, comme les autres AT.'}],
+  [['intTf','intTg'],{src:'Calcul — cumulé depuis janvier',txt:'Mêmes formules que Tf / Tg, sur les AT et les heures des intérimaires seulement.'}],
   [['arrivants'],{src:'Saisie — par défaut = accueils d’embauchés',
     txt:'Embauchés + stagiaires + alternants. Posé automatiquement depuis les accueils, orange tant que tu ne l’as pas saisi ; une saisie le confirme et n’est jamais écrasée.'}],
   [['interimaires'],{src:'Saisie — par défaut = accueils d’intérimaires',txt:'Même mécanique que les nouveaux arrivants.'}],
@@ -619,7 +636,7 @@ function renderMensuel(){
     kpi(String(tg).replace('.',','),'Taux de gravité')+'</div>';
   // en-tête cliquable : ℹ ouvre la note de la colonne, ⚠️ signale un doute pas encore vu
   const th=c=>{const nt=noteCol(c.k), d=nt&&nt.doute&&!douteVu(nt.doute.id);
-    const cls=['g-'+c.g,c.large?'heures':'',c.petit?'petit':'',c.calc?'calc':''].filter(Boolean).join(' ');
+    const cls=['g-'+c.g,c.large?'heures':'',c.petit?'petit':'',(c.calc||c.taux)?'calc':''].filter(Boolean).join(' ');
     return '<th class="'+cls+'" style="text-align:right">'+(nt
       ?'<button class="thn'+(d?' doute':'')+'" onclick="voirNote(\''+c.k+'\')" title="'+esc((c.tt?c.tt+' — ':'')+(nt.src||''))+(d?' — ⚠️ un doute à trancher':'')+'">'+esc(c.t)+'<i>'+(d?'⚠️':'ℹ')+'</i></button>'
       :'<span'+(c.tt?' title="'+esc(c.tt)+'"':'')+'>'+esc(c.t)+'</span>')+'</th>'};
@@ -632,7 +649,10 @@ function renderMensuel(){
      '<tr><th>Mois</th>'+COLS.map(th).join('')+'</tr></thead><tbody>';
   const fmt=v=>(v===undefined||v===''||v===null)?'—':(isNaN(Number(v))?esc(String(v)):Number(v).toLocaleString('fr-FR'));
   const pct=(m,c)=>{const a=n(m[c.calc[1]]);return a?Math.round(n(m[c.calc[0]])/a*100)+' %':'—'};
-  rows.forEach(m=>{
+  /* V3.8 : un taux (Tf / Tg) est cumulé depuis janvier jusqu'au mois de la ligne */
+  const tauxCumul=(idx,c)=>{const j=rows.slice(0,idx+1);const num=j.reduce((s,x)=>s+n(x[c.taux[0]]),0),den=j.reduce((s,x)=>s+n(x[c.taux[1]]),0);
+    return den>0?(Math.round(num*c.taux[2]/den*Math.pow(10,c.taux[3]))/Math.pow(10,c.taux[3])).toLocaleString('fr-FR',{minimumFractionDigits:c.taux[3],maximumFractionDigits:c.taux[3]}):'—'};
+  rows.forEach((m,idx)=>{
     h+='<tr><td><b>'+MOIS_L[Number(m.k.slice(5,7))-1]+'</b></td>';
     COLS.forEach(c=>{
       const mode=modeCase(c,m.k);
@@ -640,6 +660,7 @@ function renderMensuel(){
       const d=douteCase(m.k,c.k);   // ⚠️ une case dont je ne suis pas sûr
       const flag=d?'<i>⚠️</i>':'';
       const dAttr=d?' title="'+esc(d.txt)+'"':'';
+      if(c.taux){h+='<td class="calc '+base+'" title="'+esc(c.tt||'')+'">'+tauxCumul(idx,c)+'</td>';return}
       if(mode==='calc'){h+='<td class="calc '+base+'">'+pct(m,c)+'</td>';return}
       if(mode==='total'){h+='<td class="num total '+base+(d?' doute':'')+'"'+dAttr+'><b>'+fmt(m[c.k])+'</b>'+flag+'</td>';return}
       if(mode==='auto'){
@@ -660,6 +681,7 @@ function renderMensuel(){
   });
   h+='<tr class="tot"><td><b>TOTAL</b></td>';
   COLS.forEach(c=>{
+    if(c.taux){h+='<td class="calc g-'+c.g+(c.petit?' petit':'')+'"><b>'+(rows.length?tauxCumul(rows.length-1,c):'—')+'</b></td>';return}
     if(c.calc){const a=S(c.calc[1]);h+='<td class="calc g-'+c.g+'">'+(a?Math.round(S(c.calc[0])/a*100)+' %':'—')+'</td>';return}
     h+='<td class="num g-'+c.g+(c.petit?' petit':'')+'"><b>'+(S(c.k)||0).toLocaleString('fr-FR')+'</b></td>'});
   h+='</tr></tbody></table></div>';
@@ -667,7 +689,8 @@ function renderMensuel(){
   h+='<p class="hint" style="margin-top:10px">🤖 Une case robot vient d’un outil : QHP, accueils et fiches de formation digitales, VMS digitales (avec CD / AD), visites (CR) et accidentologie (journal d’analyses) depuis <b>'+esc(moisL(BASCULE))+'</b> ; '+
     'Vigiminutes depuis <b>'+esc(moisL(VIGI_AUTO))+'</b> (classeur Reporting Vigiminutes, par agence). Elle reste vide (—) tant que le mois n’est pas passé ou que la collecte de nuit n’a pas tourné. '+
     'Avant ces dates, tout se saisit ici — les chiffres de l’ancien reporting 2026 sont rattachés à '+esc(AGENCE_HISTO)+', en orange quand ils sont posés par défaut. '+
-    'Toujours à toi : heures, effectif, jours d’arrêt, maladies pro (0 par défaut), VMS papier, nouveaux arrivants, accueils et fiches papier, déchets.</p></div>';
+    'Toujours à toi : heures, effectif, jours d’arrêt, maladies pro (0 par défaut), VMS papier, nouveaux arrivants, accueils et fiches papier, déchets — et pour les intérimaires : heures, personnes différentes, jours d’arrêt. '+
+    'Tf et Tg (entreprise et intérim) sont cumulés depuis janvier.</p></div>';
   document.getElementById('v-mensuel').innerHTML=h;
 }
 /* ---------- valeurs par défaut, à vérifier ----------
@@ -701,6 +724,10 @@ function poserDefauts(m){
    – VMS : l'ancienne colonne unique « vms » devient le digital quand ni digital ni papier
      n'est renseigné, puis le total est recalculé. */
 function normaliserMensuel(){
+  /* V3.7.1 : les lignes créées par la collecte arrivent sans mp ; moisLigne posait 0 à
+     l'affichage, donc l'empreinte changeait à chaque synchro et la page se redessinait
+     pour rien. On pose 0 ici, sans toucher maj. */
+  state.mensuel.forEach(m=>{if(m&&(m.mp===undefined||m.mp===''))m.mp=0});
   const histo=AGENCE_HISTO||'IDF';
   const parKA={},garde=[];let change=false;
   const vide=v=>v===undefined||v===null||v==='';

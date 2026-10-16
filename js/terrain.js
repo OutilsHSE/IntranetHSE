@@ -236,6 +236,7 @@ const TODO_ICO={accident:'🚨',action:'🛠️',remontee:'📬',arrivant:'👷'
 let briquesOuvertes=(function(){try{return JSON.parse(localStorage.getItem('ihse_briques')||'{}')||{}}catch(e){return {}}})();
 function briqueBascule(el){const k=el&&el.dataset&&el.dataset.b;if(!k)return;
   if(el.open)briquesOuvertes[k]=1;else delete briquesOuvertes[k];
+  if(k==='collab'&&el.open&&!collabData.charge&&!collabData.enCours)chargerCollab();
   try{localStorage.setItem('ihse_briques',JSON.stringify(briquesOuvertes))}catch(e){}}
 function brique(k,ico,titre,resume,corps,classe){
   return '<details class="brique'+(classe?' '+classe:'')+'" data-b="'+k+'"'+(briquesOuvertes[k]?' open':'')+' ontoggle="briqueBascule(this)">'
@@ -280,9 +281,173 @@ function renderTodo(){
   /* -- année précédente -- */
   const anCour=new Date().getFullYear(); if(!bilanAn)bilanAn=String(anCour-1);
   const bo=bulBilanLu(bilanAn);
+  /* -- entrées / départs (V3.7) -- */
+  h+=brique('collab','👥','Entrées / départs des collaborateurs',resumeCollab(),renderCollabHSE(),'collab');
+  /* -- oublis QHP / Vigiminutes (V3.6) -- */
+  const ob=resumeOublis();
+  h+=brique('oublis','🔎','Oublis Vigiminutes / QHP',ob.resume,renderOublisHSE());
   h+=brique('bilan','📅','Année précédente',esc(bilanAn)+' · '+(bo?'bilan saisi ✓':'<b class="orange">rien de saisi</b>')+' · '+esc(agenceChoisie?('agence '+agenceChoisie):'Global'),renderBilanHSE());
   h+='</div>';
   box.innerHTML=h;
+  if(briquesOuvertes.collab&&!collabData.charge&&!collabData.enCours&&!collabData.err)setTimeout(chargerCollab,0);
+}
+/* ---------- 🔎 OUBLIS VIGIMINUTES / QHP PAR CHANTIER (V3.6) ----------
+   Règles du service HSE : 1 Vigiminute par semaine et 1 QHP par mois sur chaque chantier
+   actif. Actif = une activité (Vigiminute ou QHP) dans les 2 dernières semaines pour les
+   Vigiminutes, dans les 4 dernières semaines pour les QHP. Calculé par le serveur. */
+let oublisTous=false;
+const MOIS_COURTS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function oublisListe(){const o=state.oublis;if(!o||!Array.isArray(o.chantiers))return [];return o.chantiers.filter(c=>!agenceChoisie||(c.agence||'')===agenceChoisie)}
+function etatCase(n,actif,courant){return n>0?'ok':(!actif?'na':(courant?'att':'ko'))}
+/* V3.7.1 : le serveur peut renvoyer { erreur, chantiers:[] } sans semaines ni mois ;
+   on exige la forme complète, sinon toute la zone HSE ne se dessinait plus */
+function oublisUtilisables(o){return !!(o&&Array.isArray(o.chantiers)&&Array.isArray(o.semaines)&&o.semaines.length>=2&&Array.isArray(o.mois)&&o.mois.length>=2)}
+function resumeOublis(){
+  const o=state.oublis;
+  if(!oublisUtilisables(o))return {resume:o&&o.erreur?'calcul en erreur côté serveur':'arrive à la prochaine synchronisation',ko:0};
+  const l=oublisListe(),nS=o.semaines.length,nM=o.mois.length;
+  const koV=l.filter(c=>etatCase(c.vigi[nS-2],c.actifV[nS-2],false)==='ko').length;
+  const attV=l.filter(c=>etatCase(c.vigi[nS-1],c.actifV[nS-1],true)==='att').length;
+  const koQ=l.filter(c=>etatCase(c.qhp[nM-2],c.actifQ[nM-2],false)==='ko').length;
+  const attQ=l.filter(c=>etatCase(c.qhp[nM-1],c.actifQ[nM-1],true)==='att').length;
+  const mc=MOIS_COURTS[Number(o.mois[nM-1].slice(5,7))-1];
+  const p=[];
+  p.push(koV?'<b class="rouge">'+koV+' sans Vigiminute la semaine dernière</b>':'Vigiminutes de la semaine dernière ✓');
+  if(attV)p.push(attV+' à faire cette semaine');
+  if(koQ)p.push('<b class="rouge">'+koQ+' sans QHP le mois dernier</b>');
+  if(attQ)p.push(attQ+' QHP à faire en '+mc);
+  return {resume:p.join(' · ')+(agenceChoisie?' · '+esc(agenceChoisie):''),ko:koV+koQ};
+}
+function renderOublisHSE(){
+  const o=state.oublis;
+  if(!oublisUtilisables(o))return o&&o.erreur?'<p class="muted">Le calcul des oublis a échoué côté serveur : '+esc(o.erreur)+'. Relance une synchronisation (🔄) ; si ça persiste, le classeur Vigiminutes ou QHP n’est pas lisible.</p>'
+    :'<p class="muted">Le suivi arrive à la prochaine synchronisation (bouton 🔄 en haut).</p>';
+  const nS=o.semaines.length,nM=o.mois.length;
+  const cell=(n,actif,courant)=>{const e=etatCase(n,actif,courant);return '<td class="ob-'+e+'" title="'+(e==='ok'?n+' fait'+(n>1?'s':''):e==='ko'?'oubli':e==='att'?'à faire (période en cours)':'chantier pas actif')+'">'+(e==='ok'?n:e==='ko'?'✗':e==='att'?'⏳':'·')+'</td>'};
+  const aOubli=c=>c.vigi.some((n,i)=>['ko','att'].includes(etatCase(n,c.actifV[i],i===nS-1)))||c.qhp.some((n,i)=>['ko','att'].includes(etatCase(n,c.actifQ[i],i===nM-1)));
+  const nbKo=c=>c.vigi.filter((n,i)=>etatCase(n,c.actifV[i],i===nS-1)==='ko').length+c.qhp.filter((n,i)=>etatCase(n,c.actifQ[i],i===nM-1)==='ko').length;
+  const l=oublisListe().filter(c=>oublisTous||aOubli(c));
+  const semLib=s=>s.slice(8,10)+'/'+s.slice(5,7);
+  let h='<p class="hint" style="margin:0 0 8px">1 Vigiminute par semaine et 1 QHP par mois sur chaque chantier actif. <span class="ob-ok ob-leg">3</span> fait · <span class="ob-ko ob-leg">✗</span> oubli · <span class="ob-att ob-leg">⏳</span> période en cours · <span class="ob-na ob-leg">·</span> chantier pas actif. Calculé à la synchro'+(o.calculeLe?' · '+esc(frDateCourt(String(o.calculeLe).slice(0,10))):'')+'.</p>'
+    +'<div class="row no-print" style="gap:8px;margin-bottom:8px"><span class="seg"><button class="'+(oublisTous?'':'on')+'" onclick="oublisTous=false;renderTodo()">Chantiers à relancer</button><button class="'+(oublisTous?'on':'')+'" onclick="oublisTous=true;renderTodo()">Tous les chantiers actifs</button></span></div>';
+  (o.erreurs||[]).forEach(e=>{h+='<div class="secempty" style="margin-bottom:8px">⚠️ '+esc(e)+'</div>'});
+  if(!l.length)return h+'<p class="muted">'+(oublisTous?'Aucun chantier actif'+(agenceChoisie?' pour cette agence':'')+'.':'Rien à relancer'+(agenceChoisie?' pour cette agence':'')+' 🎉')+'</p>';
+  const ags=[...new Set(l.map(c=>c.agence||''))].sort((a,b)=>(a===''?1:0)-(b===''?1:0)||a.localeCompare(b));
+  ags.forEach(ag=>{
+    const lc=l.filter(c=>(c.agence||'')===ag).sort((a,b)=>nbKo(b)-nbKo(a)||String(a.nom).localeCompare(String(b.nom),'fr'));
+    h+='<div class="ob-ag"><h4>'+(ag?'<span class="apill ag-'+esc(ag)+'">'+esc(ag)+'</span>':'<span class="apill">Sans agence</span>')+' <span class="muted small">'+lc.length+' chantier'+(lc.length>1?'s':'')+'</span></h4>'
+      +'<div class="agb-scroll"><table class="atab ob-tab"><thead><tr><th rowspan="2">Chantier</th><th rowspan="2">Conducteur</th><th colspan="'+nS+'">Vigiminutes · semaine du</th><th colspan="'+nM+'">QHP · mois</th></tr><tr>'
+      +o.semaines.map((s,i)=>'<th'+(i===nS-1?' class="ob-cour"':'')+'>'+(i===nS-1?'cette sem.':semLib(s))+'</th>').join('')
+      +o.mois.map((m,i)=>'<th'+(i===nM-1?' class="ob-cour"':'')+'>'+MOIS_COURTS[Number(m.slice(5,7))-1]+'</th>').join('')+'</tr></thead><tbody>'
+      +lc.map(c=>'<tr><td class="ob-nom">'+esc(c.nom)+'</td><td class="small">'+esc(c.conducteur||'—')+'</td>'
+        +c.vigi.map((n,i)=>cell(n,c.actifV[i],i===nS-1)).join('')+c.qhp.map((n,i)=>cell(n,c.actifQ[i],i===nM-1)).join('')+'</tr>').join('')
+      +'</tbody></table></div></div>';
+  });
+  return h;
+}
+/* ---------- 👥 ENTRÉES / DÉPARTS DES COLLABORATEURS (V3.7) ----------
+   Une seule liste pour tous les outils : le Référentiel CDES (onglet COLLABORATEURS).
+   Un départ = une date de départ : la personne disparaît des listes de saisie des outils
+   branchés (Suivi QHP, CR / Observations, PDP, VMS) ; ce qui a déjà été signé ou saisi
+   reste. Lu et modifié par le serveur de l'intranet, éditeur seulement. */
+let collabData={liste:[],charge:false,enCours:false,err:'',auj:''}, collabQ='', collabEdit=null;
+function collabAuj(){return collabData.auj||new Date().toISOString().slice(0,10)}
+function collabActif(c){return !c.dateDepart||c.dateDepart>=collabAuj()}
+async function chargerCollab(){
+  collabData.enCours=true;collabData.err='';majCollab();
+  try{const r=await appel({secret:conf.secret,action:'collab-liste',appareil:conf.appareil||'éditeur'},45000);collabData.liste=r.collaborateurs||[];collabData.auj=r.aujourdhui||'';collabData.charge=true}
+  catch(e){collabData.err=e.message||'erreur'}
+  finally{collabData.enCours=false;majCollab()}
+}
+function majCollab(){
+  const el=document.querySelector('#hse-todo details[data-b="collab"]');
+  if(!el){if(typeof renderTodo==='function')renderTodo();return}
+  const r=el.querySelector('summary .br-r');if(r)r.innerHTML=resumeCollab();
+  const c=el.querySelector('.br-corps');if(c)c.innerHTML=renderCollabHSE();
+}
+function resumeCollab(){
+  if(collabData.enCours&&!collabData.charge)return '⏳ chargement du Référentiel…';
+  if(collabData.err)return '<b class="rouge">⚠️ '+esc(collabData.err)+'</b>';
+  if(!collabData.charge)return 'ouvre pour charger la liste (Référentiel CDES)';
+  const m=collabAuj().slice(0,7), l=collabData.liste.filter(c=>!agenceChoisie||c.agence===agenceChoisie);
+  const act=l.filter(collabActif).length, ent=l.filter(c=>(c.dateAjout||'').slice(0,7)===m).length, dep=l.filter(c=>(c.dateDepart||'').slice(0,7)===m).length;
+  return act+' actif'+(act>1?'s':'')+' · '+ent+' entrée'+(ent>1?'s':'')+' et '+dep+' départ'+(dep>1?'s':'')+' ce mois'+(agenceChoisie?' · '+esc(agenceChoisie):'');
+}
+function renderCollabHSE(){
+  let h='<p class="hint" style="margin:0 0 8px">Une seule liste pour tous les outils : le <b>Référentiel CDES</b>. Un départ retire la personne des listes de saisie des outils branchés (Suivi QHP, CR / Observations, PDP, VMS) sous 10 minutes ; tout ce qu’elle a déjà signé ou saisi reste dans l’historique.</p>';
+  h+='<div class="row no-print" style="gap:8px;margin-bottom:10px;align-items:center"><button class="btn btn-primary btn-sm" onclick="collabNouvelle()">➕ Nouvelle entrée</button>'
+    +'<input type="text" id="collab-q" placeholder="🔎 Chercher un nom" value="'+esc(collabQ)+'" oninput="collabQ=this.value;renderCollabListe()" style="flex:1;min-width:160px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="chargerCollab()" title="Relire le Référentiel">🔄</button></div>';
+  if(collabData.err)h+='<div class="secempty">⚠️ '+esc(collabData.err)+(/REFERENTIEL_ID/.test(collabData.err)?'<br>Ajoute la propriété <b>REFERENTIEL_ID</b> (identifiant du classeur « Référentiel CDES ») dans le script de l’intranet.':'')+'</div>';
+  if(collabData.enCours&&!collabData.charge)return h+'<p class="muted">⏳ Chargement…</p>';
+  return h+'<div id="collab-liste">'+collabListeHtml()+'</div>';
+}
+function renderCollabListe(){const b=document.getElementById('collab-liste');if(b)b.innerHTML=collabListeHtml();const r=document.querySelector('#hse-todo details[data-b="collab"] summary .br-r');if(r)r.innerHTML=resumeCollab()}
+function collabListeHtml(){
+  if(!collabData.charge)return '';
+  const net=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const q=net(collabQ).trim();
+  const l=collabData.liste.filter(c=>(!agenceChoisie||c.agence===agenceChoisie)&&(!q||net(c.nom).includes(q)));
+  const lim=new Date(collabAuj());lim.setDate(lim.getDate()-90);const limK=lim.toISOString().slice(0,10);
+  const mouv=[];l.forEach(c=>{if(c.dateAjout&&c.dateAjout>=limK)mouv.push({c,t:'e',d:c.dateAjout});if(c.dateDepart&&c.dateDepart>=limK)mouv.push({c,t:'d',d:c.dateDepart})});
+  mouv.sort((a,b)=>b.d.localeCompare(a.d));
+  let h='';
+  if(mouv.length&&!q)h+='<h4 class="cl-h">Mouvements des 3 derniers mois</h4><div class="cl-mouv">'+mouv.slice(0,20).map(m=>'<span class="cl-m '+m.t+'">'+(m.t==='e'?'➕ ':'🚪 ')+esc(m.c.nom)+' <i>'+esc(frDateCourt(m.d))+(m.c.agence?' · '+esc(m.c.agence):'')+'</i></span>').join('')+'</div>';
+  const act=l.filter(collabActif).sort((a,b)=>a.nom.localeCompare(b.nom,'fr')), partis=l.filter(c=>!collabActif(c)).sort((a,b)=>String(b.dateDepart).localeCompare(String(a.dateDepart)));
+  h+='<h4 class="cl-h">Actifs <span class="apill">'+act.length+'</span></h4>';
+  if(!act.length)h+='<p class="muted">Personne'+(q?' ne correspond':'')+'.</p>';
+  else h+='<div class="agb-scroll"><table class="atab cl-tab"><thead><tr><th>Nom</th><th>Agence</th><th>Groupe</th><th>Rôles</th><th>Entrée</th><th></th></tr></thead><tbody>'
+    +act.map(c=>'<tr'+(c.dateDepart?' class="cl-part"':'')+'><td><b>'+esc(c.nom)+'</b>'+(c.dateDepart?' <span class="cl-dep">part le '+esc(frDateCourt(c.dateDepart))+'</span>':'')+'</td><td>'+(c.agence?'<span class="apill ag-'+esc(c.agence)+'">'+esc(c.agence)+'</span>':'—')+'</td><td class="small">'+esc(c.secteur||'—')+'</td>'
+      +'<td class="small">'+[c.conducteur?'🎓 conducteur':'',c.qhp?'QHP':'',c.diffusion?'📧 Vigiminutes':''].filter(Boolean).join(' · ')+'</td><td class="small">'+(c.dateAjout?esc(frDateCourt(c.dateAjout)):'—')+'</td>'
+      +'<td class="cl-act"><button class="btn btn-ghost btn-sm" title="Modifier" data-n="'+esc(c.nom)+'" onclick="collabModifier(this.dataset.n)">✏️</button>'+(c.dateDepart?'<button class="btn btn-ghost btn-sm" data-n="'+esc(c.nom)+'" onclick="collabOp(\'retour\',this.dataset.n)">↩ Annuler le départ</button>':'<button class="btn btn-ghost btn-sm" data-n="'+esc(c.nom)+'" onclick="collabDepart(this.dataset.n)">🚪 Départ</button>')+'</td></tr>').join('')+'</tbody></table></div>';
+  if(partis.length)h+='<details class="cl-partis"><summary>Partis <span class="apill">'+partis.length+'</span> — gardés pour l’historique, absents des listes des outils</summary><div class="agb-scroll"><table class="atab cl-tab"><tbody>'
+    +partis.map(c=>'<tr><td>'+esc(c.nom)+'</td><td>'+esc(c.agence||'—')+'</td><td class="small">parti le '+esc(frDateCourt(c.dateDepart))+'</td><td class="cl-act"><button class="btn btn-ghost btn-sm" data-n="'+esc(c.nom)+'" onclick="collabOp(\'retour\',this.dataset.n)">↩ Annuler le départ</button></td></tr>').join('')+'</tbody></table></div></details>';
+  return h;
+}
+async function collabOp(op,nom,extra){
+  try{
+    const r=await appel({secret:conf.secret,action:'collab-maj',appareil:conf.appareil||'éditeur',data:Object.assign({op:op,nom:nom},extra||{})},45000);
+    collabData.liste=r.collaborateurs||collabData.liste;collabData.charge=true;
+    toast({entree:'Entrée enregistrée ✓',depart:'Départ enregistré ✓',retour:'Départ annulé ✓',modifier:'Modifié ✓',supprimer:'Ligne supprimée'}[op]+(r.arrivant?' · fiche « nouvel arrivant » créée':''));
+    if(r.arrivant&&typeof syncOuLecture==='function')syncOuLecture(false);
+    majCollab();return true;
+  }catch(e){toast('Échec : '+(e.message||'?'),true);return false}
+}
+function collabDepart(nom){
+  const d=prompt('Date de départ de '+nom+' (AAAA-MM-JJ) :\n\nLa personne sortira des listes de saisie des outils à partir du lendemain. Son historique est gardé.',collabAuj());
+  if(d===null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(d.trim())){toast('Date attendue au format AAAA-MM-JJ',true);return}
+  const [a,m,j]=d.trim().split('-').map(Number),dt=new Date(a,m-1,j);
+  if(dt.getFullYear()!==a||dt.getMonth()!==m-1||dt.getDate()!==j){toast('Cette date n’existe pas',true);return}
+  collabOp('depart',nom,{date:d.trim()});
+}
+function collabNouvelle(){collabEdit=null;collabForm({})}
+function collabModifier(nom){const c=collabData.liste.find(x=>x.nom===nom);if(!c)return;collabEdit=nom;collabForm(c)}
+function collabForm(c){
+  const m=document.getElementById('m-collab');if(!m)return;
+  document.getElementById('mc-titre').textContent=collabEdit?'Modifier — '+collabEdit:'Nouvelle entrée';
+  const g=id=>document.getElementById(id);
+  g('mc-nom').value=c.nom||'';g('mc-nom').disabled=!!collabEdit;
+  g('mc-agence').value=c.agence||agenceChoisie||'';g('mc-secteur').value=c.secteur||'';
+  g('mc-date').value=collabAuj();g('mc-date-l').style.display=collabEdit?'none':'';
+  g('mc-cond').checked=!!c.conducteur;g('mc-qhp').checked=collabEdit?!!c.qhp:true;g('mc-diff').checked=!!c.diffusion;
+  g('mc-arr-l').style.display=collabEdit?'none':'';g('mc-arr').checked=!collabEdit;
+  g('mc-del').style.display=collabEdit?'':'none';
+  m.classList.add('open');
+}
+async function collabEnregistrer(){
+  const g=id=>document.getElementById(id);
+  const nom=g('mc-nom').value.replace(/\s+/g,' ').trim();
+  if(!nom){toast('Le nom est obligatoire (NOM Prénom)',true);return}
+  const d={agence:g('mc-agence').value,secteur:g('mc-secteur').value.trim(),conducteur:g('mc-cond').checked,qhp:g('mc-qhp').checked,diffusion:g('mc-diff').checked};
+  let ok;
+  if(collabEdit)ok=await collabOp('modifier',collabEdit,d);
+  else ok=await collabOp('entree',nom,Object.assign(d,{date:g('mc-date').value,arrivant:g('mc-arr').checked,statut:g('mc-statut').value}));
+  if(ok)closeModal();
+}
+async function collabSupprimer(){
+  if(!collabEdit)return;
+  if(!confirm('Supprimer la ligne « '+collabEdit+' » du Référentiel ?\n\nÀ réserver à une erreur de saisie. Pour quelqu’un qui quitte CDES, utilise plutôt « Départ » : son historique reste rattaché.'))return;
+  if(await collabOp('supprimer',collabEdit))closeModal();
 }
 function bulMoisCourantSur(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function bulBilanLu(an){const brut=kpiVal(bulBilanCle(an,agenceChoisie));if(!brut)return null;try{return JSON.parse(brut)}catch(e){return null}}
@@ -326,8 +491,9 @@ function renderBilanHSE(){
   const anCour=new Date().getFullYear(); if(!bilanAn)bilanAn=String(anCour-1);
   const cle=bulBilanCle(bilanAn,agenceChoisie), brut=kpiVal(cle); let o=null; try{o=brut?JSON.parse(brut):null}catch(e){}
   const c=(o&&o.cdes)||{}, i=(o&&o.interim)||{};
-  const hC=Number(c.heures)||0;
+  const hC=Number(c.heures)||0, hI=Number(i.heures)||0;
   const tgCalc=hC?((Number(c.joursArret)||0)*1000/hC).toFixed(2).replace('.',','):null, tfCalc=hC?((Number(c.accArret)||0)*1e6/hC).toFixed(2).replace('.',','):null;
+  const tgCalcI=hI?((Number(i.joursArret)||0)*1000/hI).toFixed(2).replace('.',','):null, tfCalcI=hI?((Number(i.accArret)||0)*1e6/hI).toFixed(2).replace('.',','):null;
   const portee=agenceChoisie?('agence '+agenceChoisie):'CDES — toutes agences';
   const ans=[anCour-1,anCour-2,anCour-3].map(a=>'<option'+(String(a)===bilanAn?' selected':'')+'>'+a+'</option>').join('');
   const inp=(id,v,ph)=>'<input type="number" min="0" step="any" id="'+id+'" value="'+(v===undefined||v===null||v===''?'':esc(String(v)))+'" placeholder="'+(ph||'')+'" style="width:100%">';
@@ -336,9 +502,9 @@ function renderBilanHSE(){
     +(o?'<span class="apill">saisi'+(o.maj?' · '+esc(frDateCourt(String(o.maj).slice(0,10))):'')+'</span>':'<span class="apill" style="background:#fff3e0;color:#9a5b00">rien de saisi</span>')+'</div>'
     +'<div class="agb-scroll"><table class="atab bl-tab"><thead><tr><th></th><th>CDES</th><th>Intérim</th></tr></thead><tbody>'
     +BILAN_CHAMPS.map(([k,lib])=>'<tr><th style="text-align:left">'+esc(lib)+'</th><td>'+inp('bl-c-'+k,c[k])+'</td><td>'+inp('bl-i-'+k,i[k])+'</td></tr>').join('')
-    +'<tr><th style="text-align:left">Heures travaillées <span class="muted" style="font-weight:400">(pour Tg / Tf)</span></th><td>'+inp('bl-c-heures',c.heures,'ex. 150000')+'</td><td class="muted small">—</td></tr>'
-    +'<tr><th style="text-align:left">Taux de gravité (Tg)</th><td>'+inp('bl-c-tg',c.tg,tgCalc!==null?'calculé : '+tgCalc:'à taper, ou heures')+'</td><td class="muted small">—</td></tr>'
-    +'<tr><th style="text-align:left">Taux de fréquence (Tf)</th><td>'+inp('bl-c-tf',c.tf,tfCalc!==null?'calculé : '+tfCalc:'à taper, ou heures')+'</td><td class="muted small">—</td></tr>'
+    +'<tr><th style="text-align:left">Heures travaillées <span class="muted" style="font-weight:400">(pour Tg / Tf)</span></th><td>'+inp('bl-c-heures',c.heures,'ex. 150000')+'</td><td>'+inp('bl-i-heures',i.heures,'heures intérim')+'</td></tr>'
+    +'<tr><th style="text-align:left">Taux de gravité (Tg)</th><td>'+inp('bl-c-tg',c.tg,tgCalc!==null?'calculé : '+tgCalc:'à taper, ou heures')+'</td><td>'+inp('bl-i-tg',i.tg,tgCalcI!==null?'calculé : '+tgCalcI:'à taper, ou heures')+'</td></tr>'
+    +'<tr><th style="text-align:left">Taux de fréquence (Tf)</th><td>'+inp('bl-c-tf',c.tf,tfCalc!==null?'calculé : '+tfCalc:'à taper, ou heures')+'</td><td>'+inp('bl-i-tf',i.tf,tfCalcI!==null?'calculé : '+tfCalcI:'à taper, ou heures')+'</td></tr>'
     +'</tbody></table></div>'
     +'<div class="row no-print" style="margin-top:10px;gap:8px"><button class="btn btn-primary btn-sm" onclick="enregistrerBilan()">Enregistrer</button>'
     +(o?'<button class="btn btn-ghost btn-sm" onclick="effacerBilan()">Effacer ce bilan</button>':'')
@@ -351,8 +517,10 @@ function enregistrerBilan(){
   const cdes={},interim={};let rempli=false;
   BILAN_CHAMPS.forEach(([k])=>{const a=g('bl-c-'+k),b=g('bl-i-'+k);if(a!=='')cdes[k]=a;if(b!=='')interim[k]=b;if(a!==''||b!=='')rempli=true});
   const hh=g('bl-c-heures');if(hh!=='')cdes.heures=hh;
-  ['tg','tf'].forEach(k=>{const v=g('bl-c-'+k);if(v!==''&&!isNaN(v)){cdes[k]=v;rempli=true}});
-  if(!rempli&&hh===''){toast('Rien à enregistrer : remplis au moins une case',true);return}
+  const hi=g('bl-i-heures');if(hi!=='')interim.heures=hi;
+  ['tg','tf'].forEach(k=>{const v=g('bl-c-'+k);if(v!==''&&!isNaN(v)){cdes[k]=v;rempli=true}
+    const w=g('bl-i-'+k);if(w!==''&&!isNaN(w)){interim[k]=w;rempli=true}});
+  if(!rempli&&hh===''&&hi===''){toast('Rien à enregistrer : remplis au moins une case',true);return}
   const cle=bulBilanCle(bilanAn,agenceChoisie);
   state.kpi[cle]=JSON.stringify({cdes:cdes,interim:interim,maj:nowISO()});state.kpiMaj[cle]=nowISO();save();
   toast('Bilan '+bilanAn+' enregistré ✓');

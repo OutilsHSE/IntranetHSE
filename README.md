@@ -1,4 +1,4 @@
-# Intranet HSE — CDES (V3.3.6)
+# Intranet HSE — CDES (V3.7)
 
 Une seule page pour tout le monde : accueil (indicateurs + outils), suivi des nouveaux
 arrivants, documents, et — pour le service HSE seulement — la zone HSE (briques) et le Reporting.

@@ -11,9 +11,9 @@
 <!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
      ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
      débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
-<script src="config.js?v=3.3.6"></script>
-<script src="js/configuration.js?v=3.3.6"></script>
-<link rel="stylesheet" href="css/intranet.css?v=3.3.6">
+<script src="config.js?v=3.8"></script>
+<script src="js/configuration.js?v=3.8"></script>
+<link rel="stylesheet" href="css/intranet.css?v=3.8">
 </head>
 <body>
 <header>
@@ -72,13 +72,11 @@
   <section class="view" id="v-modeop">
     <div class="row no-print" style="margin-bottom:12px"><button class="btn btn-ghost" onclick="go('v-hub')">← Retour au tableau de bord</button></div>
     <div class="card">
-      <h2>📚 Banque documentaire</h2>
-      <p class="small muted">Flashs Santé-Sécurité et modes opératoires. Le mot cherché peut être dans le titre, dans le nom du fichier ou dans le texte du document.</p>
-      <input type="text" id="bq-q" class="bqsearch" placeholder="🔎 Rechercher… levage, produit chimique, faucardage, ligne de tir" oninput="bqSaisie()">
+      <h2>📘 Modes opératoires</h2>
+      <p class="small muted">Les modes opératoires CDES, par domaine. Les <b>flashs sécurité</b> sont dans l’<a href="#" onclick="qhpVoirFlashs();return false">Espace QHP ▸ Tous les flashs</a>.</p>
+      <div class="ia-recherche"><input type="text" id="bq-q" class="bqsearch" placeholder="🔎 Rechercher… levage, crue, ravitaillement — ou pose une question" oninput="bqSaisie()" onkeydown="if(event.key==='Enter')bqLancerIA()">
+        <button class="btn btn-accent ia-btn" onclick="bqLancerIA()" title="L’IA comprend la question et les synonymes du métier">✨ IA</button></div>
       <div class="bqbar no-print">
-        <button class="bqfam on" data-f="" onclick="bqSetFam('')">Tout</button>
-        <button class="bqfam" data-f="flash" onclick="bqSetFam('flash')">📣 Flashs</button>
-        <button class="bqfam" data-f="modeop" onclick="bqSetFam('modeop')">📘 Modes opératoires</button>
         <select id="bq-sec" onchange="bqSetSec(this.value)"></select>
         <select id="bq-an" onchange="bqSetAn(this.value)"></select>
         <span class="bqsp"></span>
@@ -211,12 +209,33 @@
   <label class="f">Statut</label><select id="mr-statut"></select>
   <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="enregistrerRemAction()">Enregistrer</button></div>
 </div></div>
+<div class="modal" id="m-collab"><div class="sheet" style="max-width:560px">
+  <div class="grab"></div><h2 id="mc-titre">Nouvelle entrée</h2>
+  <p class="small muted">Écrit dans le Référentiel CDES (onglet COLLABORATEURS) : tous les outils branchés suivent.</p>
+  <label class="f">Nom et prénom *</label><input type="text" id="mc-nom" autocomplete="off" placeholder="NOM Prénom — comme dans les autres outils">
+  <div class="row"><div style="width:120px"><label class="f">Agence</label><select id="mc-agence"><option value="">—</option><option>IDF</option><option>NA</option><option>BPL</option></select></div>
+    <div class="grow"><label class="f">Groupe / secteur</label><input type="text" id="mc-secteur" placeholder="Ex. Exploitation, Atelier, Fonctions Support"></div></div>
+  <div id="mc-date-l"><label class="f">Date d’entrée</label><input type="date" id="mc-date" style="max-width:200px"></div>
+  <div class="mc-cases">
+    <label><input type="checkbox" id="mc-cond"> 🎓 Conducteur de travaux</label>
+    <label><input type="checkbox" id="mc-qhp" checked> Suivi dans les QHP</label>
+    <label><input type="checkbox" id="mc-diff"> 📧 Reçoit les Vigiminutes</label>
+  </div>
+  <div id="mc-arr-l" class="mc-arr"><label><input type="checkbox" id="mc-arr" checked> Ouvrir aussi sa fiche de suivi « nouvel arrivant »</label>
+    <select id="mc-statut"><option>Nouvel embauché</option><option>Intérimaire</option><option>Stagiaire / alternant</option><option>Nouveau poste de travail</option></select></div>
+  <div class="row" style="margin-top:14px"><button class="btn btn-danger" id="mc-del" onclick="collabSupprimer()" title="Erreur de saisie seulement">🗑</button><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="collabEnregistrer()">Enregistrer</button></div>
+</div></div>
 <div class="modal" id="m-qtheme"><div class="sheet" style="max-width:680px">
   <div class="grab"></div><h2 id="mq-titre-h">Thème QHP</h2>
   <div class="row"><div class="grow"><label class="f">Titre *</label><input type="text" id="mq-titre" placeholder="Ex. Port des EPI sur le ponton"></div>
-    <div style="width:150px"><label class="f">Mois</label><input type="month" id="mq-mois"></div></div>
+    <div style="width:170px"><label class="f">Thème du mois</label><input type="month" id="mq-mois"></div></div>
   <label class="f">Lien de la vidéo</label><input type="text" id="mq-video" placeholder="YouTube, Vimeo, SharePoint, Stream… (facultatif)">
   <label class="f">Lien du flash</label><input type="text" id="mq-flash" placeholder="Lien OneDrive / SharePoint du flash, ou PDF (facultatif)">
+  <input type="hidden" id="mq-banque">
+  <label class="f">🖼️ Image du flash <span class="muted" style="font-weight:400;text-transform:none">— pour l’afficher au centre de l’écran : PowerPoint ▸ Fichier ▸ Exporter ▸ PNG (diapositive en cours)</span></label>
+  <div class="row" style="align-items:center;gap:10px"><div id="mq-image-ap" class="mq-image-ap"></div>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">📤 Choisir l’image<input type="file" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="qhpChoisirImage(this)"></label>
+    <button class="btn btn-ghost btn-sm" id="mq-image-del" onclick="qhpRetirerImage()" style="display:none">Retirer</button></div>
   <label class="f">Mot d’intro (facultatif)</label><input type="text" id="mq-note" placeholder="Une phrase pour lancer le QHP">
   <label class="f">Quiz <span class="muted" style="font-weight:400">— une question par bloc : <code>Q:</code> la question, <code>-</code> les réponses, <code>*</code> devant la bonne, <code>E:</code> l’explication</span></label>
   <textarea id="mq-quiz" rows="9" placeholder="Q: Faut-il un casque sur le ponton ?&#10;- Non&#10;- *Oui, toujours&#10;E: Le casque est obligatoire dès la passerelle.&#10;&#10;Q: …"></textarea>
@@ -293,11 +312,11 @@
 </div></div>
 
 <div id="toast"></div>
-<script src="js/intranet.js?v=3.3.6"></script>
-<script src="js/bulletin.js?v=3.3.6"></script>
-<script src="js/terrain.js?v=3.3.6"></script>
-<script src="js/qhp.js?v=3.3.6"></script>
-<script src="js/retex.js?v=3.3.6"></script>
+<script src="js/intranet.js?v=3.8"></script>
+<script src="js/bulletin.js?v=3.8"></script>
+<script src="js/terrain.js?v=3.8"></script>
+<script src="js/qhp.js?v=3.8"></script>
+<script src="js/retex.js?v=3.8"></script>
 <script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 </script>
