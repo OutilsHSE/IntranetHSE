@@ -252,7 +252,9 @@
 <div class="modal" id="m-flot"><div class="sheet" style="max-width:760px">
   <div class="grab"></div><h2>📤 Images des flashs</h2>
   <p class="small muted">Dépose les <b>PDF des flashs</b> (le dossier SharePoint « Flashs Santé-Sécurité » synchronisé dans ton explorateur) : la première page de chaque PDF devient l’image du flash, au centre de sa page et sur sa carte. Le rapprochement se fait par le nom du fichier ; corrige-le dans la liste si besoin. Des PNG / JPG exportés de PowerPoint conviennent aussi. Rien ne quitte l’intranet : les images sont rangées dans le dossier privé « Flashs images » du Drive.</p>
-  <label class="flot-zone"><b>📂 Choisir les fichiers</b> <span class="muted">(PDF, PNG, JPG — 60 au plus à la fois)</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple style="display:none" onchange="flLotFichiers(this)"></label>
+  <div class="row" style="gap:10px">
+    <label class="flot-zone grow"><b>📁 Choisir le dossier des flashs</b><br><span class="muted small">tout le dossier « Flashs QHP », sous-dossiers des années compris</span><input type="file" webkitdirectory directory multiple style="display:none" onchange="flLotFichiers(this)"></label>
+    <label class="flot-zone grow"><b>📂 Choisir des fichiers</b><br><span class="muted small">PDF, PNG ou JPG, quelques-uns à la fois</span><input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple style="display:none" onchange="flLotFichiers(this)"></label></div>
   <div id="flot-liste" style="margin-top:10px"></div>
   <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:10px"><input type="checkbox" id="flot-remplacer"> <span>Remplacer l’image des flashs qui en ont déjà une</span></label>
   <div class="row" style="margin-top:14px"><button class="btn btn-ghost grow" onclick="closeModal()">Fermer</button><button class="btn btn-primary grow" id="flot-go" onclick="flLotEnvoyer()" disabled>📤 Envoyer</button></div>
