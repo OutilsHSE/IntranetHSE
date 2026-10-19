@@ -52,7 +52,9 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.11.1';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
+const APP_VERSION = 'V3.12.2';   // 19/10/2026 — brique « VMS & QHP » : VMS par personne (objectif annuel, dates, classement) + classement des animateurs QHP ; V3.3.4 14/10 : Reporting autonome
+/* V3.12 : les listes synchronisées avec le serveur (rep-sync), en un seul endroit */
+const LISTES_SYNC=['mensuel','incidents','remontees','se','objectifs','chantiers','vmsPersonnes','vmsVisites'];
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -118,7 +120,7 @@ function zoneDepuisTexte(t){
 }
 
 /* ==================== ÉTAT ==================== */
-let state = {mensuel:[], incidents:[], remontees:[], se:[], objectifs:[], chantiers:[], params:{}, tomb:{}};
+let state = {mensuel:[], incidents:[], remontees:[], se:[], objectifs:[], chantiers:[], vmsPersonnes:[], vmsVisites:[], params:{}, tomb:{}};
 
 /* ---------- découpage par agence ----------
    Une ligne dont l'agence est vide n'est pas perdue : elle tombe dans « Non
@@ -168,7 +170,7 @@ function modeDemo(){return !webhookURL()&&!state._touche}
 
 function load(){
   try{const r=localStorage.getItem(LS);if(r){const s=JSON.parse(r);if(s&&typeof s==='object')state=Object.assign(state,s)}}catch(e){}
-  ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{if(!Array.isArray(state[k]))state[k]=[]});
+  LISTES_SYNC.forEach(k=>{if(!Array.isArray(state[k]))state[k]=[]});
   if(!state.tomb)state.tomb={};
   if(!state.params)state.params={};
   try{const c=localStorage.getItem(LS_CONF);if(c)conf=Object.assign(conf,JSON.parse(c))}catch(e){}
@@ -242,6 +244,7 @@ const ECRANS = [
   {id:'v-acc',t:'Accidentologie',c:'var(--warn)',r:renderAcc},
   {id:'v-se',t:'Santé & Environnement',c:'var(--ok)',r:renderSE},
   {id:'v-flash',t:'Flashs SSE',c:'var(--accent)',r:renderFlash},
+  {id:'v-vms',t:'VMS & QHP',c:'var(--cyan)',r:renderVms},   // V3.12
   {id:'v-obj',t:'Objectifs SSE',c:'var(--violet)',r:renderObj}
 ];
 /* ---------- écran de correspondance chantier → agence ----------
@@ -1378,6 +1381,12 @@ const FICHES = {
       {k:'reportPA',t:'Reporté au plan d’actions',type:'select',opts:REF.ouiNon},
       {k:'dateReal',t:'Date de réalisation',type:'date'}
     ]},
+  vmsp:{titre:'Personne suivie en VMS',liste:'vmsPersonnes',
+    champs:[
+      {k:'nom',t:'Nom (Prénom NOM)',obl:true},
+      {k:'agence',t:'Agence',type:'select',opts:['IDF','NA','BPL'],obl:true},
+      {k:'objectif',t:'Objectif de VMS par an',type:'number',obl:true},
+      {k:'note',t:'Commentaire',type:'textarea',full:true}]},
   se:{titre:'Action santé / environnement',liste:'se',
     champs:[
       {k:'date',t:'Date',type:'date',obl:true},
@@ -1541,6 +1550,94 @@ function closeModal(){document.querySelectorAll('.modal').forEach(m=>m.classList
   if(typeFiche==='incident'){zoneChoisie=filtreZoneEcran;const v=document.getElementById('v-acc');if(v&&v.classList.contains('active'))renderAcc()}}
 document.addEventListener('mousedown',e=>{document.querySelectorAll('.modal.open').forEach(m=>{if(e.target===m)closeModal()})});
 
+/* ==================== ÉCRAN — VMS & QHP (V3.12, 19/10/2026) ====================
+   Demande de Justin : « un suivi des VMS par personne avec un petit classement pour les QHP ».
+   · VMS : chaque personne suivie porte une agence et un OBJECTIF ANNUEL ; chaque VMS réalisée
+     est une date (+ chantier facultatif). Classement par taux d'avancement, repère de
+     « où on devrait en être » à la date du jour (prorata), ajout d'une VMS d'une touche,
+     retrait en touchant la date. Tout part au classeur (onglets VMS_PERSONNES, VMS_VISITES).
+   · QHP : classement des animateurs sur l'année en cours, calculé par le serveur depuis
+     l'appli Suivi QHP (lecture seule, comme l'écran QHP d'avant).
+   Les noms ne sont JAMAIS dans ce code : ils viennent du serveur, derrière le code éditeur. */
+let vmsAnnee=ANNEE, vmsAjoutPour=null, VMS_INCONNUS=[];
+function vmsPersonnes(){return actifs(state.vmsPersonnes||[])}
+function vmsVisites(){return actifs(state.vmsVisites||[])}
+function vmsVisitesDe(pid,annee){return vmsVisites().filter(v=>v.personne===pid&&String(v.date||'').slice(0,4)===String(annee)).sort((a,b)=>String(a.date).localeCompare(String(b.date)))}
+function vmsAnnees(){const s=new Set([ANNEE,vmsAnnee]);vmsVisites().forEach(v=>{const y=+String(v.date||'').slice(0,4);if(y>2000)s.add(y)});return [...s].sort((a,b)=>b-a)}
+/* part de l'année écoulée : 1 pour une année passée, 0 pour une année à venir */
+function vmsProrata(annee){const d=new Date();if(annee<d.getFullYear())return 1;if(annee>d.getFullYear())return 0;
+  const debut=new Date(annee,0,1),fin=new Date(annee+1,0,1);return Math.min(1,Math.max(0,(d-debut)/(fin-debut)))}
+function vmsLignes(annee){
+  const pro=vmsProrata(annee);
+  return filtreAg(vmsPersonnes(),'chantier').map(p=>{
+    const v=vmsVisitesDe(p.id,annee),nb=v.length,obj=n(p.objectif),attendu=Math.round(obj*pro*10)/10;
+    const taux=obj?nb/obj:0;
+    const etat=obj?(nb>=obj?'ok':nb>=attendu*0.8?'ok':nb>0?'mid':attendu>=1?'bad':'mid'):'mid';
+    return {p,v,nb,obj,attendu,taux,etat};
+  }).sort((a,b)=>b.taux-a.taux||b.nb-a.nb||String(a.p.nom).localeCompare(String(b.p.nom),'fr'));
+}
+function vmsMedaille(i){return i===0?'🥇':i===1?'🥈':i===2?'🥉':'<b class="rang">'+(i+1)+'</b>'}
+function qhpClassementAnnee(){
+  if(!QHP||!Array.isArray(QHP.conducteurs)||!Array.isArray(QHP.mois))return null;
+  const idx=QHP.mois.map((m,i)=>String(m.k||'').slice(0,4)===String(ANNEE)?i:-1).filter(i=>i>=0);
+  return QHP.conducteurs.map(c=>({nom:c.nom,agence:c.agence||'',n:idx.reduce((t,i)=>t+((c.mois||[])[i]||0),0),chantiers:c.chantiers||0,participants:c.participants||0}))
+    .sort((a,b)=>b.n-a.n||String(a.nom).localeCompare(String(b.nom),'fr'));
+}
+function renderVms(){
+  const box=document.getElementById('v-vms');if(!box)return;
+  const annee=vmsAnnee,L=vmsLignes(annee);
+  const totN=L.reduce((t,l)=>t+l.nb,0),totO=L.reduce((t,l)=>t+l.obj,0),aJour=L.filter(l=>l.obj&&l.nb>=l.attendu).length;
+  const pc=totO?Math.round(totN/totO*100):0,pro=Math.round(vmsProrata(annee)*100);
+  let h='<div class="barre"><h2>🦺 VMS par personne '+annee+(estGlobal()?'':' · '+esc(agLib(agence)))+'</h2>'
+    +'<div class="droite"><select class="sel-annee" onchange="vmsAnnee=+this.value;renderVms()">'+vmsAnnees().map(y=>'<option'+(y===annee?' selected':'')+'>'+y+'</option>').join('')+'</select>'
+    +'<button class="btn btn-accent" onclick="ouvrirFiche(\'vmsp\')">＋ Personne</button></div></div>';
+  h+='<div class="kpis" style="margin-bottom:14px">'+kpi(totN,'VMS réalisées')+kpi(totO,'Objectif de l’année')+kpi(pc+' %','Avancement (année écoulée à '+pro+' %)',pc>=pro?'good':pc>=pro*0.8?'':'bad')+kpi(aJour+'/'+L.length,'Personnes à jour',aJour===L.length&&L.length?'good':'')+'</div>';
+  h+='<div class="card"><h2>🏁 Classement VMS</h2>';
+  if(!L.length)h+='<div class="vide"><span class="big">🦺</span>Aucune personne suivie'+(estGlobal()?'':' dans cette agence')+'. Commence par « ＋ Personne » (nom, agence, objectif annuel).</div>';
+  else{
+    h+='<p class="hint">Le trait bleu marine dans la barre = où on devrait en être aujourd’hui. ✅ dans les temps · ⚠️ en retard · 🚫 rien de fait. 🔗 = VMS faite dans l’outil VMS, pointée toute seule. <b>Touche une date</b> pour la retirer, le nom pour modifier la personne.</p>'
+      +(VMS_INCONNUS.length?'<div class="banner warn">⚠️ VMS faites dans l’outil par <b>'+VMS_INCONNUS.map(x=>esc(x.nom)+' ('+x.n+')').join(', ')+'</b>, qui ne sont pas dans cette liste : ajoute la personne (« ＋ Personne », même nom) et elles seront pointées à la synchro suivante.</div>':'')+'<div class="qlist">';
+    L.forEach((l,i)=>{const p=l.p,ico=l.obj?(l.etat==='ok'?'✅':l.etat==='bad'?'🚫':'⚠️'):'';
+      h+='<div class="qrow vrow'+(l.nb?'':' vide')+'"><span class="qn"><span class="med">'+vmsMedaille(i)+'</span><a href="#" onclick="ouvrirFiche(\'vmsp\',\''+p.id+'\');return false" title="Modifier">'+esc(p.nom)+'</a><span class="qag">'+esc(p.agence||'')+'</span>'+ico+'</span>'
+        +'<span class="qbar '+(l.etat==='ok'?'ok':l.etat==='bad'?'bad':'mid')+(l.nb?'':' nul')+'"><i style="width:'+Math.min(100,Math.round(l.taux*100))+'%"></i>'+(l.obj?'<b class="qmark" style="left:'+Math.min(100,Math.round(l.attendu/l.obj*100))+'%"></b>':'')+'</span>'
+        +'<span class="qv">'+l.nb+'<small>/'+l.obj+'</small></span>'
+        +'<span class="qd vdates">'+l.v.map(v=>'<span class="vchip'+(v.source==='outil'?' outil':'')+'" title="'+esc((v.source==='outil'?'Enregistrée dans l’outil VMS ('+(v.num||'')+') · ':'')+(v.chantier?v.chantier+' — ':'')+'touche pour retirer')+'" onclick="vmsSupprVisite(\''+v.id+'\')">'+(v.source==='outil'?'🔗 ':'')+esc(frCourt(v.date))+'</span>').join('')
+        +'<button class="btn btn-ghost btn-xs" onclick="vmsOuvrirAjout(\''+p.id+'\')">＋ VMS</button></span>';
+      if(vmsAjoutPour===p.id)h+='<span class="vajout"><input type="date" id="va-date" value="'+(annee===ANNEE?new Date().toISOString().slice(0,10):annee+'-01-01')+'"><input type="text" id="va-ch" placeholder="Chantier (facultatif)"><button class="btn btn-primary btn-xs" onclick="vmsAjouterVisite(\''+p.id+'\')">Enregistrer</button><button class="btn btn-ghost btn-xs" onclick="vmsAjoutPour=null;renderVms()">Annuler</button></span>';
+      h+='</div>'});
+    h+='</div>';
+  }
+  h+='</div>';
+  /* --- classement QHP --- */
+  const C=qhpClassementAnnee();
+  h+='<div class="card" style="margin-top:14px"><h2>🏆 Classement QHP '+ANNEE+' <span class="ro">lecture seule</span></h2>';
+  if(!C)h+='<p class="hint">Le classement arrive avec la synchronisation (calculé depuis l’appli Suivi QHP : propriété QHP_SHEET_ID côté script).</p>';
+  else if(!C.length)h+='<p class="hint">Aucun animateur connu : coche « animateur » dans la liste des collaborateurs.</p>';
+  else{const max=Math.max(1,...C.map(c=>c.n));
+    h+='<p class="hint">QHP animés depuis le 1er janvier, d’après les fiches de l’appli Suivi QHP (champ « Animateur »).</p><div class="qlist">';
+    C.forEach((c,i)=>{h+='<div class="qrow'+(c.n?'':' vide')+'"><span class="qn"><span class="med">'+vmsMedaille(i)+'</span>'+esc(c.nom)+'<span class="qag">'+esc(c.agence)+'</span></span>'+qbar(c.n/max*100,c.n?'':'nul')+'<span class="qv">'+c.n+'</span><span class="qd">'+c.chantiers+' chantier'+(c.chantiers>1?'s':'')+' · '+c.participants+' participation'+(c.participants>1?'s':'')+'</span></div>'});
+    h+='</div>';
+    if(QHP.condInconnus&&QHP.condInconnus.length)h+='<p class="hint">⚠️ Animateur non reconnu : '+QHP.condInconnus.map(x=>esc(x.t)+' ('+x.n+')').join(', ')+' — corrige l’orthographe dans la fiche QHP.</p>';
+  }
+  h+='</div>';
+  box.innerHTML=h;
+  if(vmsAjoutPour){const el=document.getElementById('va-ch');if(el)el.focus()}
+}
+function vmsOuvrirAjout(pid){vmsAjoutPour=(vmsAjoutPour===pid)?null:pid;renderVms()}
+function vmsAjouterVisite(pid){
+  const d=(document.getElementById('va-date')||{}).value||'',ch=((document.getElementById('va-ch')||{}).value||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){toast('Renseigne la date',true);return}
+  const p=vmsPersonnes().find(x=>x.id===pid);if(!p)return;
+  if(vmsVisites().some(v=>v.personne===pid&&v.date===d&&netCh(v.chantier||'')===netCh(ch))&&!confirm('Une VMS de '+p.nom+' est déjà notée le '+frDate(d)+(ch?' sur '+ch:'')+'. En ajouter une deuxième ?'))return;
+  state.vmsVisites.push({id:uid('v'),personne:pid,date:d,chantier:ch,note:'',maj:nowISO()});
+  vmsAjoutPour=null;vmsAnnee=+d.slice(0,4);save();renderVms();toast('VMS notée ✓');syncAuto();
+}
+function vmsSupprVisite(id){
+  const v=vmsVisites().find(x=>x.id===id);if(!v)return;const p=vmsPersonnes().find(x=>x.id===v.personne);
+  if(!confirm('Retirer la VMS du '+frDate(v.date)+(p?' de '+p.nom:'')+' ?'))return;
+  v.supprime=true;v.maj=nowISO();save();renderVms();toast('VMS retirée');syncAuto();
+}
+
 /* ==================== SYNCHRONISATION ==================== */
 let syncEnCours=false, syncTimer=null;
 function syncEtat(t){const el=document.getElementById('sync-etat');if(el)el.textContent=t}
@@ -1575,22 +1672,24 @@ function payloadSync(){
     chantiers:chantiers().map(c=>Object.assign({},c,{maj:c.maj||EPOCH})),
     objectifs:state.objectifs.map(o=>Object.assign({},o,{maj:o.maj||EPOCH,
       inds:JSON.stringify(o.inds||[]),vals:JSON.stringify(o.vals||{})})),
+    vmsPersonnes:(state.vmsPersonnes||[]).map(o=>Object.assign({},o,{maj:o.maj||EPOCH})),   // V3.12
+    vmsVisites:(state.vmsVisites||[]).map(o=>Object.assign({},o,{maj:o.maj||EPOCH})),
     params:state.params
   }};
 }
 const CLE_COLL={mensuel:m=>m.k+'|'+(m.agence||''),chantiers:c=>c.id||c.nom||c.cle||JSON.stringify(c)};
 function cleColl(k,o){return (CLE_COLL[k]||(o=>o.id))(o)}
 function modifsDepuis(t0){const r={};
-  ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{r[k]=(state[k]||[]).filter(o=>o&&o.maj&&String(o.maj)>=t0).map(o=>JSON.parse(JSON.stringify(o)))});
+  LISTES_SYNC.forEach(k=>{r[k]=(state[k]||[]).filter(o=>o&&o.maj&&String(o.maj)>=t0).map(o=>JSON.parse(JSON.stringify(o)))});
   return r}
 function reappliquer(r){let n=0;
   Object.keys(r).forEach(k=>{if(!Array.isArray(state[k]))state[k]=[];
     r[k].forEach(o=>{const c=cleColl(k,o);const i=state[k].findIndex(x=>cleColl(k,x)===c);
       if(i<0){state[k].push(o);n++}else if(!state[k][i].maj||String(state[k][i].maj)<String(o.maj)){state[k][i]=o;n++}})});
   return n>0}
-function empreinteDonnees(){try{return JSON.stringify([state.mensuel,state.incidents,state.remontees,state.se,state.objectifs,state.chantiers,state.params,BASCULE,QHP&&QHP.mois?QHP.mois.length:0])}catch(e){return String(Math.random())}}
+function empreinteDonnees(){try{return JSON.stringify([state.mensuel,state.incidents,state.remontees,state.se,state.objectifs,state.chantiers,state.vmsPersonnes,state.vmsVisites,state.params,BASCULE,QHP&&QHP.mois?QHP.mois.length:0])}catch(e){return String(Math.random())}}
 function appliquer(d){
-  ['mensuel','incidents','remontees','se','objectifs','chantiers'].forEach(k=>{if(Array.isArray(d[k]))state[k]=d[k]});
+  LISTES_SYNC.forEach(k=>{if(Array.isArray(d[k]))state[k]=d[k]});
   if(d.bascule&&/^\d{4}-\d{2}$/.test(d.bascule))BASCULE=d.bascule;
   if(d.agenceHistorique)AGENCE_HISTO=d.agenceHistorique;
   if(d.vigiAuto&&/^\d{4}-\d{2}$/.test(d.vigiAuto))VIGI_AUTO=d.vigiAuto;
@@ -1599,6 +1698,7 @@ function appliquer(d){
      renvoyés au serveur. La saisie reste dans l'appli Suivi QHP — c'est ce qui
      garantit qu'on ne peut pas se contredire d'un écran à l'autre. */
   if(d.qhp&&typeof d.qhp==='object')QHP=d.qhp;
+  if(Array.isArray(d.vmsInconnus))VMS_INCONNUS=d.vmsInconnus;   // V3.12.2 : visiteurs de l'outil VMS hors liste
   if(d.params&&typeof d.params==='object')state.params=Object.assign({},state.params,d.params);
   normaliserMensuel();
   save();
@@ -1827,7 +1927,7 @@ function restaurerDepuisTexte(txt, provenance){
   if(!confirm('Remplacer les données actuelles par :\n'+
       compte[0]+' mois · '+compte[1]+' incidents · '+compte[2]+' remontées · '+compte[3]+' objectifs ?'))return false;
   // un import sans « params » (ex. l'import 2026) ne doit pas casser Réglages : on garde les réglages actuels
-  state=Object.assign({mensuel:[],incidents:[],remontees:[],se:[],objectifs:[],chantiers:[],tomb:{},params:state.params||{}},st);
+  state=Object.assign({mensuel:[],incidents:[],remontees:[],se:[],objectifs:[],chantiers:[],vmsPersonnes:[],vmsVisites:[],tomb:{},params:state.params||{}},st);
   if(!state.params||typeof state.params!=='object')state.params={};
   normaliserMensuel();
   save();

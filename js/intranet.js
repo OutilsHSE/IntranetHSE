@@ -1,4 +1,4 @@
-const APP_VERSION='V3.11.1';   // 19/10/2026 — correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.12.2';   // 19/10/2026 — arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -8,7 +8,9 @@ const MOIS_L=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août'
 function uid(){return 't'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className=(e?'err ':'')+'show';clearTimeout(t._t);t._t=setTimeout(()=>t.className='',2600)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function frDate(iso){if(!iso)return '';const d=new Date(iso+'T00:00');if(isNaN(d))return iso;return d.getDate()+' '+MOIS_S[d.getMonth()]+' '+d.getFullYear()}
+/* V3.12.1 : une date peut arriver en « 2026-09-13T22:00:00.000Z » (cellule convertie par Sheets, minuit Paris = 22 h UTC la veille) : on la lit à l'heure locale, jamais par slice(0,10) */
+function jourDe(v){v=String(v||'').trim();if(!v)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;if(/^\d{4}-\d{2}-\d{2}T/.test(v)){const d=new Date(v);if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}return v.slice(0,10)}
+function frDate(iso){if(!iso)return '';const j=jourDe(iso);const d=new Date(j+'T00:00');if(isNaN(d))return iso;return d.getDate()+' '+MOIS_S[d.getMonth()]+' '+d.getFullYear()}
 function frDateCourt(iso){if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')}
 
 /* ==================== OUTILS PAR DÉFAUT ==================== */
@@ -1557,7 +1559,7 @@ function etapeDe(a,champ){return String(arrivEtapes(a)[champ]||'')}
 function libEtape(j,v){const e=(j.etapes||[]).find(x=>x.v===v);return e?e.lib:''}
 let arrivFiltre={statut:'',agence:'',incomplets:false,anciens:false}, arrivEnCours=null;
 function arrivants(){return (state.arrivants||[]).slice().sort((a,b)=>
-  String(b.arrivee||'').localeCompare(String(a.arrivee||''))||String(a.nom||'').localeCompare(String(b.nom||''),'fr'))}
+  jourDe(b.arrivee).localeCompare(jourDe(a.arrivee))||String(a.nom||'').localeCompare(String(b.nom||''),'fr'))}   // V3.12.1 : tri sur le JOUR, stable quelle que soit la forme de la date
 function arrivComplet(a){return JALONS.every(j=>String(a[j.c]||'').trim()!=='')}
 function arrivVisibles(){
   return arrivants().filter(a=>
@@ -1576,7 +1578,11 @@ async function envoyerArrivants(items,msg){
   if(!webhookLecture()){toast('Le suivi n’est pas branché : renseigne config.js',true);return false}
   try{
     const j=await appel({action:'arrivants-maj',appareil:conf.appareil||nomAppareil(),data:{arrivants:items}});
-    if(j.data&&Array.isArray(j.data.arrivants))state.arrivants=j.data.arrivants;
+    if(j.data&&Array.isArray(j.data.arrivants)){state.arrivants=j.data.arrivants;
+      /* V3.12.1 : ce qu'on a cliqué PENDANT l'aller-retour n'est pas encore dans la réponse du serveur
+         (sa propre demande est en route) : on le remet par-dessus, sinon la case « sautait ». */
+      Object.keys(jalonsEnvoi).forEach(k=>{const e=jalonsEnvoi[k];if(!e||typeof e!=='object')return;if(items.some(it=>it.id===e.id&&it[e.champ]!==undefined))return;
+        const a=state.arrivants.find(x=>x.id===e.id);if(a){a[e.champ]=e.val;a.etapes=e.etapes}})}
     save();renderArrivants();if(typeof renderDash==='function')renderDash();
     /* Le serveur refuse une personne déjà suivie avec le MÊME statut. On ne
        laisse pas l'utilisateur dans le doute : on le dit, et on lui ouvre la
@@ -1622,7 +1628,7 @@ function openArrivant(id){
   const a=id?(state.arrivants||[]).find(x=>x.id===id):null;
   arrivEnCours=a?a.id:null;
   document.getElementById('ma-titre').textContent=a?('Fiche de '+a.nom):'Nouvel arrivant';
-  const v=(k,d)=>document.getElementById(k).value=(a&&a[d]!==undefined&&a[d]!==null)?a[d]:'';
+  const v=(k,d)=>{const el=document.getElementById(k);let x=(a&&a[d]!==undefined&&a[d]!==null)?a[d]:'';if(el.type==='date')x=jourDe(x);el.value=x};   // V3.12.1 : un champ date reçoit un jour, jamais un ISO
   v('ma-nom','nom');v('ma-poste','poste');v('ma-arrivee','arrivee');v('ma-tuteur','tuteur');
   v('ma-chantier','chantier');v('ma-debut','accDebut');v('ma-fin','accFin');
   v('ma-notions','notions');v('ma-notes','notes');
@@ -1692,10 +1698,11 @@ function raccourciArrivants(){
 const ARRIV_MOIS_SORTIE=3;                         // parcours complet : disparaît après N mois
 function estNA(v){return String(v||'').trim().toUpperCase()==='NA'}
 function jalonEtat(a,c){const v=String(a[c]||'').trim();return !v?'todo':(estNA(v)?'na':'fait')}
+function jalonJour(a,c){return jourDe(a[c])}
 /* date de référence d'une fiche : le dernier jalon daté, sinon l'arrivée, sinon la dernière modif */
 function arrivDateRef(a){
-  let d='';JALONS.forEach(j=>{const v=String(a[j.c]||'');if(/^\d{4}-\d{2}-\d{2}/.test(v)&&v.slice(0,10)>d)d=v.slice(0,10)});
-  return d||String(a.arrivee||'').slice(0,10)||String(a.maj||'').slice(0,10)||'';
+  let d='';JALONS.forEach(j=>{const v=jalonJour(a,j.c);if(/^\d{4}-\d{2}-\d{2}$/.test(v)&&v>d)d=v});
+  return d||jourDe(a.arrivee)||jourDe(a.maj)||'';
 }
 function arrivAncien(a){
   if(!arrivComplet(a))return false;
@@ -1714,7 +1721,7 @@ function jalonMenu(ev,id,champ){
   fermerJalonMenu();
   const a=(state.arrivants||[]).find(x=>x.id===id); if(!a)return;
   const j=JALONS.find(x=>x.c===champ); if(!j)return;
-  const et=jalonEtat(a,champ), v=String(a[champ]||'').slice(0,10);
+  const et=jalonEtat(a,champ), v=jalonJour(a,champ);
   const auj=new Date().toISOString().slice(0,10);
   const m=document.createElement('div'); m.className='jmenu'; m.id='jmenu';
   m.innerHTML='<div class="jm-t">'+esc(j.lib)+'<span>'+esc(a.nom)+'</span></div>'
@@ -1737,7 +1744,7 @@ async function poserJalon(id,champ,val){
   if(val&&val!=='NA'&&!/^\d{4}-\d{2}-\d{2}$/.test(val))return;
   const etapes=Object.assign({},arrivEtapes(a)); delete etapes[champ];
   a[champ]=val; a.etapes=etapes;
-  jalonsEnvoi[id+'|'+champ]=true; renderArrivants();
+  jalonsEnvoi[id+'|'+champ]={id,champ,val,etapes}; renderArrivants();
   const msg=(val==='NA'?'— Non concerné : ':(val?'✓ '+frDate(val)+' : ':'↩ À faire : '))+j.lib+' — '+a.nom;
   try{await envoyerArrivants([{id:id,[champ]:val,etapes:etapes}],msg)}
   finally{delete jalonsEnvoi[id+'|'+champ]; renderArrivants()}
@@ -1804,10 +1811,10 @@ function renderArrivants(){
         +'<td class="c-nom"><div class="an">'+esc(a.nom)+'</div><div class="asub"><span class="apill">'+esc(a.statut||'—')+'</span>'+(a.poste?' <span class="amut">'+esc(a.poste)+'</span>':'')+'</div></td>'
         +'<td class="c-date">'+(a.arrivee?esc(frDate(a.arrivee)):'<span class="muted">—</span>')+'</td>';
       JALONS.forEach(j=>{
-        const et=jalonEtat(a,j.c), v=String(a[j.c]||'');
+        const et=jalonEtat(a,j.c), v=jalonJour(a,j.c);
         const envoi=!!jalonsEnvoi[a.id+'|'+j.c];
-        const lib=et==='fait'?'✓ '+frDate(v.slice(0,10)):(et==='na'?'NA':'');
-        const tt=j.lib+' : '+(et==='fait'?'fait le '+frDate(v.slice(0,10)):(et==='na'?'non concerné':'à faire'))+' — clic : changer';
+        const lib=et==='fait'?'✓ '+frDate(v):(et==='na'?'NA':'');
+        const tt=j.lib+' : '+(et==='fait'?'fait le '+frDate(v):(et==='na'?'non concerné':'à faire'))+' — clic : changer';
         h+='<td class="c-j"><button class="jc '+et+(envoi?' envoi':'')+'" onclick="jalonMenu(event,\''+esc(a.id)+'\',\''+j.c+'\')" title="'+esc(tt)+'">'+(lib||'<i></i>')+(envoi?'<em class="jsab" title="Enregistrement en cours…">⏳</em>':'')+'</button></td>';
       });
       h+='<td class="c-etat">'+(complet?'<span class="aok">✔ complet</span>':'<span class="aprog2"><b>'+faits+'</b>/'+JALONS.length+'<i style="width:'+Math.round(100*faits/JALONS.length)+'%"></i></span>')+'</td>'
