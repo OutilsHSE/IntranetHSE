@@ -1,4 +1,4 @@
-const APP_VERSION='V3.11';   // 16/10/2026 — retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.11.1';   // 19/10/2026 — correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -2116,8 +2116,13 @@ function outilsPayload(){
 function modeopPayload(){
   const tombes=Object.keys(state.tombModeop||{}).map(id=>({id,maj:state.tombModeop[id],supprime:true}));
   return (state.modeop||[]).map(m=>Object.assign({},m,{maj:m.maj||EPOCH})).concat(tombes)}
-function appliquer(d){
-  if(Array.isArray(d.outils)&&d.outils.length)state.outils=d.outils.map(o=>Object.assign({masque:false},o,{masque:o.masque===true||o.masque==='oui',hse:o.hse===true||o.hse==='oui',links:Array.isArray(o.links)?o.links:[]}));
+function appliquer(d,origine){
+  /* V3.11.1 — garde-fou : sur un appareil ÉDITEUR, la lecture légère du démarrage ne remplace
+     jamais ses tuiles ni ses liens de branchement par une réponse plus pauvre (celle d'un
+     lecteur) ; elle ne fait qu'ajouter. Les tuiles font foi côté éditeur : c'est lui qui les
+     envoie au serveur par la synchronisation qui suit. */
+  const lectureEd=origine==='lecture-editeur';
+  if(!lectureEd&&Array.isArray(d.outils)&&d.outils.length)state.outils=d.outils.map(o=>Object.assign({masque:false},o,{masque:o.masque===true||o.masque==='oui',hse:o.hse===true||o.hse==='oui',links:Array.isArray(o.links)?o.links:[]}));
   if(d.tombOutils&&typeof d.tombOutils==='object')state.tombOutils=d.tombOutils;
   completerDefauts();          // les tuiles de la version en cours ne disparaissent pas à la synchro
   state.outils.forEach(o=>{if(!Array.isArray(o.links))o.links=[]});
@@ -2145,7 +2150,7 @@ function appliquer(d){
   if(d.todo&&typeof d.todo==='object')state.todo=d.todo;
   if(d.oublis&&typeof d.oublis==='object')state.oublis=d.oublis;   // V3.6 (éditeur)             // V3.3 (éditeur)
   if(Array.isArray(d.modeop))state.modeop=d.modeop;
-  if(d.liens&&typeof d.liens==='object'&&!Array.isArray(d.liens))liensOutils=d.liens;   // V28 — en mémoire seulement
+  if(d.liens&&typeof d.liens==='object'&&!Array.isArray(d.liens))liensOutils=lectureEd?Object.assign({},liensOutils,d.liens):d.liens;   // V28 — en mémoire seulement ; V3.11.1 : fusion sur l'éditeur
   if(typeof d.expireJours==='number'){conf.expireJours=d.expireJours;saveConfLS()}        // V28.3
   if(d.tombModeop&&typeof d.tombModeop==='object')state.tombModeop=d.tombModeop;
   save();
@@ -2177,8 +2182,15 @@ async function syncOuLecture(manuel,lectureSeule){
     if(conf.webhook&&conf.secret&&!lectureSeule){
       j=await appel({secret:conf.secret,action:'sync',appareil:conf.appareil||'appareil',
         data:{outils:outilsPayload(),kpi:kpiPayload(),modeop:modeopPayload(),qhpThemes:(typeof qhpThemesPayload==='function'?qhpThemesPayload():[])}})}
-    else{j=await appel({action:'lecture',appareil:conf.appareil||'visiteur'})}
-    appliquer(j.data||{});
+    else{
+      /* V3.11.1 — la lecture LÉGÈRE d'un appareil éditeur part avec le code éditeur (le serveur
+         l'accepte aussi comme mot de passe de consultation, V27) : elle rend donc les tuiles et les
+         liens du service HSE. Sans ça, le serveur la prenait pour un lecteur, répondait sans les
+         liens HSE, et la page écrasait ses tuiles branchées → « tout est débranché ». */
+      const p={action:'lecture',appareil:conf.appareil||'visiteur'};
+      if(conf.webhook&&conf.secret)p.secret=conf.secret;
+      j=await appel(p)}
+    appliquer(j.data||{},lectureSeule&&conf.webhook&&conf.secret?'lecture-editeur':'');
     conf.dernierSync=nowISO();saveConfLS();
     try{
       renderTiles();
@@ -2349,7 +2361,10 @@ function lancerSynchros(){
   const pill=document.getElementById('sync-pill'); if(pill)pill.style.display='';
   /* V3.10 : au démarrage, l'éditeur fait d'abord une LECTURE (légère, ~1 s de script) pour afficher
      tout de suite, puis sa synchronisation complète 3 s plus tard, en arrière-plan. */
-  if(conf.webhook&&conf.secret){setTimeout(()=>syncOuLecture(false,true),50);setTimeout(()=>syncOuLecture(false),3000)}
+  /* V3.11.1 : la synchronisation complète part QUAND la lecture est finie (et plus « 3 s après ») :
+     sur le réseau CDES la lecture prend souvent 3 à 5 s, et la synchro lancée pendant qu'elle
+     tournait était refusée par le garde-fou syncEnCours → jamais synchronisé avant 5 min. */
+  if(conf.webhook&&conf.secret){setTimeout(()=>{Promise.resolve(syncOuLecture(false,true)).catch(()=>{}).then(()=>setTimeout(()=>syncOuLecture(false),300))},50)}
   else setTimeout(()=>syncOuLecture(false),50);          // V3.4 : sans attendre
   setInterval(()=>{if(!document.hidden)syncOuLecture(false)},300000);
   window.addEventListener('online',()=>syncOuLecture(false));
