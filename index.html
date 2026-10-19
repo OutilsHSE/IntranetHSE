@@ -11,9 +11,9 @@
 <!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
      ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
      débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
-<script src="config.js?v=3.10"></script>
-<script src="js/configuration.js?v=3.10"></script>
-<link rel="stylesheet" href="css/intranet.css?v=3.10">
+<script src="config.js?v=3.11"></script>
+<script src="js/configuration.js?v=3.11"></script>
+<link rel="stylesheet" href="css/intranet.css?v=3.11">
 </head>
 <body>
 <header>
@@ -239,7 +239,8 @@
     <button class="btn btn-ghost btn-sm" id="mq-image-del" onclick="qhpRetirerImage()" style="display:none">Retirer</button></div>
   <label class="f">Mot d’intro (facultatif)</label><input type="text" id="mq-note" placeholder="Une phrase pour lancer le QHP">
   <div class="row" style="align-items:flex-end;gap:10px"><label class="f grow">Quiz <span class="muted" style="font-weight:400">— une question par bloc : <code>Q:</code> la question, <code>-</code> les réponses, <code>*</code> devant la bonne, <code>E:</code> l’explication</span></label>
-    <button class="btn btn-accent btn-sm" id="mq-ia" onclick="qhpProposerQuiz()" title="L’IA lit l’image du flash et propose 3 questions techniques — à relire avant d’enregistrer">✨ Proposer un quiz</button></div>
+    <button class="btn btn-accent btn-sm" id="mq-ia" onclick="qhpProposerQuiz()" title="L’IA lit l’image du flash et propose 3 questions techniques — à relire avant d’enregistrer">✨ Proposer un quiz</button>
+    <button class="btn btn-ghost btn-sm" onclick="qhpEffacerQuiz()" title="Retirer le quiz de ce flash (il disparaît à l’enregistrement)">🗑 Effacer le quiz</button></div>
   <textarea id="mq-quiz" rows="9" placeholder="Q: Faut-il un casque sur le ponton ?&#10;- Non&#10;- *Oui, toujours&#10;E: Le casque est obligatoire dès la passerelle.&#10;&#10;Q: …"></textarea>
   <label class="row" style="gap:8px;align-items:center;cursor:pointer;margin-top:8px"><input type="checkbox" id="mq-actif" checked> <span>Visible par tous (décoche pour préparer le thème sans le publier)</span></label>
   <div class="row" style="margin-top:14px"><button class="btn btn-danger" id="mq-del" onclick="qhpSupprimer()">🗑</button><button class="btn btn-ghost grow" onclick="closeModal()">Annuler</button><button class="btn btn-primary grow" onclick="qhpEnregistrer()">Enregistrer</button></div>
@@ -330,11 +331,11 @@
 </div></div>
 
 <div id="toast"></div>
-<script src="js/intranet.js?v=3.10"></script>
-<script src="js/bulletin.js?v=3.10"></script>
-<script src="js/terrain.js?v=3.10"></script>
-<script src="js/qhp.js?v=3.10"></script>
-<script src="js/retex.js?v=3.10"></script>
+<script src="js/intranet.js?v=3.11"></script>
+<script src="js/bulletin.js?v=3.11"></script>
+<script src="js/terrain.js?v=3.11"></script>
+<script src="js/qhp.js?v=3.11"></script>
+<script src="js/retex.js?v=3.11"></script>
 <script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 </script>

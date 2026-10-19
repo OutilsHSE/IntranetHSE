@@ -398,6 +398,8 @@ function qhpThemesPayload(){
    L'IA lit l'IMAGE du flash (celle rangée dans « Flashs images ») et propose trois
    questions techniques, écrites dans la case du quiz au format Q: / - / * / E:.
    Rien n'est enregistré avant « Enregistrer » : le service HSE relit et corrige. */
+/* V3.11 : retirer le quiz d'un flash — la case est vidée, le quiz disparaît à l'enregistrement */
+function qhpEffacerQuiz(){const z=document.getElementById('mq-quiz');if(!z)return;if(z.value.trim()&&!confirm('Retirer le quiz de ce flash ?'))return;z.value='';z.focus();toast('Quiz retiré — clique sur Enregistrer pour confirmer')}
 async function qhpProposerQuiz(){
   if(!estEditeur()){toast('Réservé au service HSE',true);return}
   const btn=document.getElementById('mq-ia');

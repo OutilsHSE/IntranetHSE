@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.10';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
+const APP_VERSION = 'V3.11';   // 14/10/2026 — Reporting autonome (brique de la zone HSE), saisie stable, thème clair corrigé
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const MOIS_S = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -211,7 +211,8 @@ const COLS_SOMME=['heures','effectif','accArret','accSans','benins','trajet','jo
   'vmsAuto','vmsMan','vms','vmsCd','vmsAd','dechetsT','accueilsAuto','accueilsMan','accueils','accueilsEmb','accueilsInt',
   'arrivants','interimaires','visites',
   'vigiAtt','vigiRecu','qhpEff','qhpPart','formationsAuto','formationsMan','formations',
-  'intHeures','intEffectif','intAccArret','intAccSans','intBenins','intTrajet','intJoursArret'];   // V3.8 intérimaires
+  'intHeures','intEffectif','intAccArret','intAccSans','intBenins','intTrajet','intJoursArret',
+  'intEtp'];   // V3.8 intérimaires · V3.11 ETP intérim
 /* vue Global d'un mois : la somme des agences, calculée, jamais stockée */
 function moisSomme(k){
   const l=state.mensuel.filter(x=>x.k===k);
@@ -418,7 +419,7 @@ const COLS=[
   {k:'tf',t:'Tf',tt:'Taux de fréquence cumulé depuis janvier = AT avec arrêt × 10⁶ / heures',g:'acc',taux:['accArret','heures',1e6,1],petit:true},
   {k:'tg',t:'Tg',tt:'Taux de gravité cumulé depuis janvier = jours d’arrêt × 1 000 / heures',g:'acc',taux:['joursArret','heures',1000,2],petit:true},
   /* V3.8 : intérimaires — AT comptés depuis le journal (catégorie « intérimaire »), le reste saisi */
-  {k:'intHeures',t:'Heures intérim',g:'int',large:true},{k:'intEffectif',t:'Personnes différentes',tt:'Intérimaires différents présents dans le mois',g:'int'},
+  {k:'intHeures',t:'Heures intérim',g:'int',large:true},{k:'intEffectif',t:'Personnes différentes',tt:'Intérimaires différents présents dans le mois',g:'int'},{k:'intEtp',t:'ETP intérim',tt:'Équivalents temps plein intérimaires du mois (saisi, décimales acceptées : 2,5) — la ligne TOTAL en fait la moyenne des mois renseignés',g:'int',moy:true},
   {k:'intAccArret',t:'AT avec arrêt',g:'int',journal:true},{k:'intAccSans',t:'AT sans arrêt',g:'int',journal:true},
   {k:'intBenins',t:'AT bénins',g:'int',journal:true},{k:'intTrajet',t:'AT trajet',g:'int',journal:true},
   {k:'intJoursArret',t:'Jours d’arrêt',g:'int'},
@@ -481,6 +482,7 @@ const NOTES_COL = [
   [['mp'],{src:'Saisie',txt:'0 par défaut chaque mois. Affiché dans Santé sur l’intranet.'}],
   [['tf','tg'],{src:'Calcul — cumulé depuis janvier',txt:'Tf = AT avec arrêt × 10⁶ / heures · Tg = jours d’arrêt × 1 000 / heures. Un taux calculé sur un seul mois n’a pas de sens : chaque ligne cumule janvier → ce mois. Ces AT comptent tout le monde, intérimaires compris ; les heures sont celles de la colonne Heures travaillées.'}],
   [['intHeures','intEffectif','intJoursArret'],{src:'Saisie',txt:'Heures travaillées par les intérimaires dans le mois, nombre d’intérimaires différents présents, jours d’arrêt des AT d’intérimaires. Nécessaires au Tf / Tg intérim.'}],
+  [['intEtp'],{src:'Saisie',txt:'Équivalents temps plein intérimaires du mois (ex. 2,5). Le TOTAL de l’année en fait la moyenne des mois renseignés, pas la somme.'}],
   [['intAccArret','intAccSans','intBenins','intTrajet'],{src:'Journal d’analyses d’accident — fiches dont la catégorie est « intérimaire »',dep:'sept. 2026',
     txt:'Sous-ensemble des colonnes Accidentologie : un AT d’intérimaire compte dans les deux. Comptés par mois et par agence depuis la bascule, comme les autres AT.'}],
   [['intTf','intTg'],{src:'Calcul — cumulé depuis janvier',txt:'Mêmes formules que Tf / Tg, sur les AT et les heures des intérimaires seulement.'}],
@@ -683,6 +685,7 @@ function renderMensuel(){
   COLS.forEach(c=>{
     if(c.taux){h+='<td class="calc g-'+c.g+(c.petit?' petit':'')+'"><b>'+(rows.length?tauxCumul(rows.length-1,c):'—')+'</b></td>';return}
     if(c.calc){const a=S(c.calc[1]);h+='<td class="calc g-'+c.g+'">'+(a?Math.round(S(c.calc[0])/a*100)+' %':'—')+'</td>';return}
+    if(c.moy){const vals=rows.map(m=>n(m[c.k])).filter(v=>v>0);h+='<td class="num g-'+c.g+(c.petit?' petit':'')+'" title="Moyenne des mois renseignés"><b>'+(vals.length?(Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10).toLocaleString('fr-FR'):'—')+'</b></td>';return}   // V3.11 : ETP = moyenne
     h+='<td class="num g-'+c.g+(c.petit?' petit':'')+'"><b>'+(S(c.k)||0).toLocaleString('fr-FR')+'</b></td>'});
   h+='</tr></tbody></table></div>';
   const moisL=k=>MOIS_L[Number(k.slice(5,7))-1]+' '+k.slice(0,4);
