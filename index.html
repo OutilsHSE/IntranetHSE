@@ -11,9 +11,9 @@
 <!-- L'adresse du webhook vit dans « config.js », déposé UNE SEULE FOIS à côté de
      ce fichier sur GitHub. Remplacer l'intranet ne le touche pas : le site ne se
      débranche plus jamais tout seul. S'il est absent, l'intranet passe en démo. -->
-<script src="config.js?v=3.14"></script>
-<script src="js/configuration.js?v=3.14"></script>
-<link rel="stylesheet" href="css/intranet.css?v=3.14">
+<script src="config.js?v=3.15"></script>
+<script src="js/configuration.js?v=3.15"></script>
+<link rel="stylesheet" href="css/intranet.css?v=3.15">
 </head>
 <body>
 <header>
@@ -264,7 +264,7 @@
 <div class="modal" id="m-arriv"><div class="sheet" style="max-width:640px">
   <div class="grab"></div><h2 id="ma-titre">Nouvel arrivant</h2>
   <p class="small muted">Tout le monde peut compléter cette fiche. Chaque modification est tracée ; seul un appareil éditeur peut retirer une fiche du suivi.</p>
-  <label class="f">Nom et prénom *</label><input type="text" id="ma-nom" autocomplete="off" placeholder="Ex. CAILLERET Noah">
+  <label class="f">Nom et prénom *</label><input type="text" id="ma-nom" autocomplete="off" placeholder="Ex. DURAND Paul">
   <div class="row">
     <div class="grow"><label class="f">Statut</label>
       <select id="ma-statut">
@@ -331,11 +331,11 @@
 </div></div>
 
 <div id="toast"></div>
-<script src="js/intranet.js?v=3.14"></script>
-<script src="js/bulletin.js?v=3.14"></script>
-<script src="js/terrain.js?v=3.14"></script>
-<script src="js/qhp.js?v=3.14"></script>
-<script src="js/retex.js?v=3.14"></script>
+<script src="js/intranet.js?v=3.15"></script>
+<script src="js/bulletin.js?v=3.15"></script>
+<script src="js/terrain.js?v=3.15"></script>
+<script src="js/qhp.js?v=3.15"></script>
+<script src="js/retex.js?v=3.15"></script>
 <script>/* V3.3 p2 — hors connexion : la coquille de la page reste disponible sans réseau */
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
 </script>
