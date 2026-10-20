@@ -1094,3 +1094,26 @@ body.affichage .bul-head{top:0}
 .bul-seg button.on{background:#003A6E;color:#fff}
 .bul-qhpan .bul-seg button.on{background:#5A3A9A}.bul-vms .bul-seg button.on{background:#146C3A}
 @media print{.bul-head{position:static;box-shadow:none}}
+
+  /* ---- V3.15 (20/10/2026) : nouveaux arrivants sur téléphone — une carte par personne, jalons en grille (plus de tableau à faire défiler de côté) ---- */
+  @media screen and (max-width:600px){
+    .agb-scroll{overflow:visible}
+    .atab,.atab tbody{display:block;width:100%}
+    .atab thead{display:none}
+    .atab tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:12px 14px;border-bottom:1px solid #edf2f6}
+    .atab tbody tr:last-child{border-bottom:none}
+    .atab td,.atab td.c-j{display:block;padding:0;border:none;text-align:left;background:none}
+    .atab tbody tr:hover td{background:none}
+    .atab td.c-nom{grid-column:1/-1;position:static;min-width:0;box-shadow:none;background:none}
+    .atab td.c-date{grid-column:1/-1;font-size:12.5px}
+    .atab td.c-date::before{content:attr(data-l) " : ";font-weight:700;color:var(--muted)}
+    .atab td.c-j::before{content:attr(data-l);display:block;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .atab .jc{width:100%;min-width:0;height:36px;font-size:12px}
+    .atab td.c-etat{min-width:0;align-self:center}
+    .atab td.c-act{align-self:center}
+    .atab tr.ok td{background:none}
+    .atab tr.ok{background:linear-gradient(90deg,rgba(21,138,82,.07),transparent 60%)}
+  }
+  /* V3.15 : classement annuel complet */
+  .bul-pod .med .rg{display:inline-block;min-width:26px;height:26px;line-height:26px;border-radius:50%;background:#eef3f8;color:var(--muted);font-size:13px;font-weight:800}
+  .bul-pod.long li{padding:5px 8px;font-size:13.5px}
