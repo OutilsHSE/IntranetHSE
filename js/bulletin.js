@@ -57,7 +57,14 @@ function bulRecordJours(dates){
 function bulPicto(nom,emoji){return '<div class="bul-pict"><img src="img/'+nom+'.png" alt="" onload="this.nextElementSibling.style.display=\'none\'" onerror="this.remove()"><span>'+emoji+'</span></div>'}
 /* V3.3 paquet 2 : vue Mois / Année, tendances, « Mon agence », podium des conducteurs, PDF */
 let bulPeriode='mois';
-function bulSetPeriode(p){bulPeriode=(p==='annee'?'annee':'mois');renderBulletin()}
+function bulSetPeriode(p){bulPeriode=(p==='annee'?'annee':'mois');bulCarte={};renderBulletin()}
+/* V3.14 — chaque graphique / podium a son petit curseur Mois | Année : il change CETTE carte sans changer la page.
+   Le bouton Mois / Année du bandeau remet toutes les cartes sur sa valeur. */
+let bulCarte={};
+function bulVueCarte(c){return bulCarte[c]||bulPeriode}
+function bulSetCarte(c,v){bulCarte[c]=(v==='annee'?'annee':'mois');renderBulletin()}
+function bulSeg(c){const v=bulVueCarte(c);
+  return '<span class="seg bul-seg no-print" data-carte="'+c+'"><button class="'+(v==='mois'?'on':'')+'" onclick="bulSetCarte(\''+c+'\',\'mois\')" title="Le mois affiché dans le bandeau">Mois</button><button class="'+(v==='annee'?'on':'')+'" onclick="bulSetCarte(\''+c+'\',\'annee\')" title="Depuis janvier">Année</button></span>'}
 function bulTend(cur,prev,hausseBonne,unite){
   if(cur===null||cur===undefined||prev===null||prev===undefined||isNaN(cur)||isNaN(prev))return '';
   const d=Math.round((cur-prev)*10)/10; if(!d)return '<span class="tend eq" title="identique à la période précédente">＝</span>';
@@ -221,7 +228,7 @@ function renderBulletin(){
     const att=m?Number(m.vigiAtt)||0:0, recu=m?Number(m.vigiRecu)||0:0;moisAn.push({k,att,recu,pc:att>0?Math.round(recu/att*100):null})}
   /* V3.13 : vue Mois → la barre du mois, les Vigiminutes et les remontées DU MOIS (par agence si une agence est choisie) ;
      vue Année → les 12 barres et le cumul depuis janvier */
-  const estAn=bulPeriode==='annee';
+  const estAn=bulVueCarte('vigi')==='annee';   // V3.14 : curseur de la carte
   const parMoisRem=(rep.remontees&&rep.remontees.parMois)||[];
   const mCur=moisAn.find(m=>m.k===bulMois)||{};
   const vRecu=estAn?moisAn.filter(m=>m.k<=bulMois).reduce((s,m)=>s+m.recu,0):(Number(mCur.recu)||0);
@@ -229,7 +236,7 @@ function renderBulletin(){
   const remAn=parMoisRem.filter(x=>estAn?(String(x.k).slice(0,4)===an&&x.k<=bulMois):x.k===bulMois).reduce((s,x)=>s+(Number(x.n)||0),0);
   const moisG=estAn?moisAn:[Object.assign({k:bulMois,att:0,recu:0,pc:null},mCur)];
   const vPc=vAtt>0?Math.round(vRecu/vAtt*100):null;
-  h+='<div class="bul-card bul-vigi"><h3>Vigiminutes <span class="bul-obj">objectif : '+objV+' % des Vigi attendues</span>'
+  h+='<div class="bul-card bul-vigi"><h3>Vigiminutes '+bulSeg('vigi')+'<span class="bul-obj">objectif : '+objV+' % des Vigi attendues</span>'
     +(mCur.pc!==null&&mCur.pc!==undefined?'<span class="bul-sm" title="'+esc(bulLib(bulMois))+' : '+mCur.pc+' %">'+bulSmiley(mCur.pc,objV)+(function(){const i=moisAn.findIndex(m=>m.k===bulMois);const pv=i>0?moisAn[i-1].pc:null;return bulTend(mCur.pc,pv,true,' pt')})()+'</span>':'')+'</h3>'
     +bulGraphVigi(moisG,objV)
     +'<div class="bul-total">'+vRecu.toLocaleString('fr-FR')+' Vigiminute'+(vRecu>1?'s':'')+(vAtt?' <span class="muted">sur '+vAtt.toLocaleString('fr-FR')+' attendue'+(vAtt>1?'s':'')+(vPc!==null?' ('+vPc+' %)':'')+'</span>':'')+' et '+remAn.toLocaleString('fr-FR')+' remontée'+(remAn>1?'s':'')+' <span class="muted">'+(estAn?'depuis janvier':'en '+esc(bulLib(bulMois).toLowerCase()))+'</span>'+(typeof oublisBouton==='function'?oublisBouton('vigi'):'')+'</div></div>';
@@ -245,17 +252,19 @@ function renderBulletin(){
   else{qm=qhpMois(bulMois);if(qm){qEff=qm.eff;qVus=qm.vus;qNb=qm.nb;qPc=qEff?Math.round(qVus/qEff*100):null}
     const d=new Date(Number(an),Number(bulMois.slice(5,7))-2,1);const kp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');const pm=qhpMois(kp);qPrev=pm&&pm.eff?Math.round(pm.vus/pm.eff*100):null}
   const rowM=rows.find(m=>m.k===bulMois)||{};
-  /* V3.13 : vue Année → graphique en barres du % de participation aux QHP, mois par mois (même lecture que les Vigiminutes) */
-  let qAn=[];
-  if(bulPeriode==='annee'){for(let i=0;i<12;i++){const k=an+'-'+String(i+1).padStart(2,'0');if(k>bulMois)break;const m=qhpMois(k),rm=rows.find(x=>x.k===k)||{};
-      let eff=m&&m.eff?m.eff:(Number(rm.qhpEff)||0),vus=m&&m.eff?m.vus:(Number(rm.qhpPart)||0);
-      qAn.push({k,eff,vus,nb:m?m.nb:null,pc:eff?Math.round(vus/eff*100):null,titre:BUL_MOIS_L[i]+' : '+vus+' collaborateur(s) sur '+eff+(eff?' ('+Math.round(vus/eff*100)+' %)':'')})}
-    while(qAn.length<12){const i=qAn.length;qAn.push({k:an+'-'+String(i+1).padStart(2,'0'),pc:null})}
-    h+='<div class="bul-card bul-qhpan"><h3>QHP '+esc(an)+' <span class="bul-obj">objectif : '+objQ+' % de l’effectif chaque mois</span></h3>'
-      +bulGraphBarres(qAn,objQ,{cOk:'#7A4FC0',cKo:'#c9b5ea',legende:'% de participation',aria:'QHP : pourcentage de participation par mois'})
-      +'<div class="bul-total">'+(qPc!==null?qPc+' % <span class="muted">de participation en moyenne</span>':'—')+(qNb!==null?' · '+qNb+' QHP <span class="muted">depuis janvier</span>':'')+'</div></div>';
-    h+=bulCarteVms(an);
+  /* V3.14 : graphique QHP toujours affiché, avec son curseur Mois (barre du mois) | Année (12 mois) */
+  {const qAnV=bulVueCarte('qhp')==='annee',pts=[];
+    const pt=(k,i)=>{const m=qhpMois(k),rm=rows.find(x=>x.k===k)||{};const eff=m&&m.eff?m.eff:(Number(rm.qhpEff)||0),vus=m&&m.eff?m.vus:(Number(rm.qhpPart)||0);
+      return {k,eff,vus,nb:m?m.nb:null,pc:eff?Math.round(vus/eff*100):null,titre:BUL_MOIS_L[i]+' : '+vus+' collaborateur(s) sur '+eff+(eff?' ('+Math.round(vus/eff*100)+' %)':'')}};
+    if(qAnV){for(let i=0;i<12;i++){const k=an+'-'+String(i+1).padStart(2,'0');pts.push(k>bulMois?{k,pc:null}:pt(k,i))}}
+    else pts.push(pt(bulMois,Number(bulMois.slice(5,7))-1));
+    const vals=pts.filter(x=>x.pc!==null&&x.pc!==undefined),moy=vals.length?Math.round(vals.reduce((a,x)=>a+x.pc,0)/vals.length):null;
+    const nbQ=pts.some(x=>x.nb!==null&&x.nb!==undefined)?pts.reduce((a,x)=>a+(x.nb||0),0):null;
+    h+='<div class="bul-card bul-qhpan"><h3>QHP '+bulSeg('qhp')+'<span class="bul-obj">objectif : '+objQ+' % de l’effectif chaque mois</span></h3>'
+      +bulGraphBarres(pts,objQ,{cOk:'#7A4FC0',cKo:'#c9b5ea',legende:'% de participation',aria:'QHP : pourcentage de participation'})
+      +'<div class="bul-total">'+(moy!==null?moy+' % <span class="muted">'+(qAnV?'de participation en moyenne':'de participation en '+esc(bulLib(bulMois).toLowerCase()))+'</span>':'—')+(nbQ!==null?' · '+nbQ+' QHP <span class="muted">'+(qAnV?'depuis janvier':'ce mois-ci')+'</span>':'')+'</div></div>';
   }
+  h+=bulCarteVms(an);   // V3.14 : toujours à côté du graphique QHP, avec son propre curseur
   h+='<div class="bul-card bul-mini"><div class="bul-mini-ico">🗣️</div><h3>QHP '+esc(bulPeriode==='annee'?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+'</h3>'
     +(qPc!==null?'<div class="bul-big">'+qPc+' %<span class="bul-sm">'+bulSmiley(qPc,objQ)+bulTend(qPc,qPrev,true,' pt')+'</span></div><div class="bul-sub">'+(bulPeriode==='annee'?'en moyenne, ':'')+qVus+' collaborateur'+(qVus>1?'s':'')+' sur '+qEff+' ont participé'+(qNb!==null?' · '+qNb+' QHP réalisé'+(qNb>1?'s':''):'')+'</div>'
       :(Number(rowM.qhpEff)>0?'<div class="bul-big">'+Math.round(Number(rowM.qhpPart)/Number(rowM.qhpEff)*100)+' %<span class="bul-sm">'+bulSmiley(Math.round(Number(rowM.qhpPart)/Number(rowM.qhpEff)*100),objQ)+'</span></div><div class="bul-sub">'+rowM.qhpPart+' / '+rowM.qhpEff+' collaborateurs (reporting)</div>'
@@ -290,17 +299,19 @@ function renderBulletin(){
   {
     const idxQ=q&&Array.isArray(q.mois)?q.mois.findIndex(m=>m.k===bulMois):-1;
     let conds=(q&&Array.isArray(q.conducteurs)?q.conducteurs:[]).filter(c=>!agenceChoisie||(c.agence||'')===agenceChoisie);
-    const score=c=>bulPeriode==='annee'?(c.mois||[]).reduce((s,n,i)=>s+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an)?n:0),0):(idxQ>=0&&c.mois?c.mois[idxQ]:0);
+    const podAn=bulVueCarte('podq')==='annee';   // V3.14 : curseur du podium
+    const score=c=>podAn?(c.mois||[]).reduce((s,n,i)=>s+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an)?n:0),0):(idxQ>=0&&c.mois?c.mois[idxQ]:0);
     conds=conds.map(c=>({nom:c.nom,agence:c.agence,n:score(c),part:c.participants||0})).filter(c=>c.n>0).sort((a,b)=>b.n-a.n||b.part-a.part).slice(0,5);
+    const titreP='<h3>🏆 Encadrants chantiers — QHP '+esc(podAn?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+' '+bulSeg('podq')+'</h3>';
+    if(!conds.length)h+='<div class="bul-card bul-podium">'+titreP+'<p class="muted">Aucun QHP animé '+(podAn?'cette année':'ce mois-ci')+' pour l’instant.</p></div>';
     if(conds.length){const med=['🥇','🥈','🥉','🏅','🏅'];
       /* égalité = même médaille (deux premiers ex æquo → deux 🥇, le suivant 🥉) */
       let rang=0;conds.forEach((c,i)=>{if(i>0&&c.n===conds[i-1].n)c.r=conds[i-1].r;else{rang=i;c.r=rang}});
-      h+='<div class="bul-card bul-podium"><h3>🏆 Encadrants chantiers — QHP '+esc(bulPeriode==='annee'?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+'</h3><ol class="bul-pod">'
+      h+='<div class="bul-card bul-podium">'+titreP+'<ol class="bul-pod">'
         +conds.map((c,i)=>'<li><span class="med">'+med[c.r]+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie?'':' <span class="apill ag-'+esc(c.agence||'')+'">'+esc(c.agence||'')+'</span>')+'</span><b>'+c.n+' QHP</b></li>').join('')
         +'</ol><p class="hint" style="margin:6px 0 0">Bravo à eux — et merci à tous ceux qui animent les quarts d’heure prévention.</p></div>';
     }
   }
-  if(bulPeriode!=='annee')h+=bulCarteVms(an);   // V3.13 : VMS du mois, cumul de l'année et podium
   /* ---- flashs du mois + MASE ---- */
   const fl=(rep.flashs||[]), flM=bulPeriode==='annee'?fl.filter(f=>String(f.date).slice(0,4)===an):fl.filter(f=>String(f.date).slice(0,7)===bulMois), flA=flM.length?flM.slice(0,bulPeriode==='annee'?14:6):fl.filter(f=>String(f.date).slice(0,4)===an&&f.date<=bulMois+'-31').slice(0,3);
   h+='<div class="bul-card bul-flash">'+bulPicto('picto_flashs','⚡')+'<div class="bul-faits-corps"><h3>Flashs '+(bulPeriode==='annee'?'de l’année':(flM.length?'mensuels':'récents'))+'</h3>'
@@ -324,11 +335,11 @@ function renderBulletin(){
    onglets VMS_PERSONNES / VMS_VISITES du Reporting HSE). Objectif du mois = objectifs annuels / 12. */
 function bulCarteVms(an){
   const g=(typeof repGlobal==='function'?repGlobal():null)||{},v=g.vms;
-  const titre='<h3>🦺 VMS — visites managériales de sécurité</h3>';
+  const titre='<h3>🦺 VMS — visites managériales de sécurité '+bulSeg('vms')+'</h3>';
   if(!v||!Array.isArray(v.personnes))return '<div class="bul-card bul-vms">'+titre+'<p class="muted">Disponible après la nouvelle version du script de l’intranet (V31.5).</p></div>';
   const P=v.personnes.filter(p=>!agenceChoisie||(p.agence||'')===agenceChoisie);
   if(!P.length)return '<div class="bul-card bul-vms">'+titre+'<p class="muted">Aucune personne suivie'+(agenceChoisie?' pour cette agence':'')+' (Reporting HSE ▸ VMS &amp; QHP).</p></div>';
-  const estAn=bulPeriode==='annee',mi=Number(bulMois.slice(5,7));
+  const estAn=bulVueCarte('vms')==='annee',mi=Number(bulMois.slice(5,7));   // V3.14 : curseur de la carte
   const dansMois=d=>String(d).slice(0,7)===bulMois, dansAn=d=>String(d).slice(0,4)===an&&String(d).slice(0,7)<=bulMois;
   const objAn=P.reduce((s,p)=>s+(Number(p.objectif)||0),0), objMois=objAn/12, objDate=objAn*mi/12;
   const nMois=P.reduce((s,p)=>s+(p.dates||[]).filter(dansMois).length,0), nAn=P.reduce((s,p)=>s+(p.dates||[]).filter(dansAn).length,0);
@@ -403,5 +414,8 @@ function bulEditerFaits(mois){
     setInterval(()=>{try{if(typeof syncOuLecture==='function')syncOuLecture(false)}catch(e){}},600000);
   });
 })();
+/* V3.14 — hauteur réelle de l'en-tête (elle change sur téléphone) : le bandeau du mois se fige juste dessous */
+(function(){const maj=()=>{const h=document.querySelector('header');const v=h&&getComputedStyle(h).position==='sticky'?h.offsetHeight:0;document.documentElement.style.setProperty('--hdr-h',v+'px')};
+  window.addEventListener('resize',maj);window.addEventListener('load',maj);setTimeout(maj,500)})();
 /* si l'intranet a déjà dessiné l'accueil avant que ce fichier soit chargé, on le redessine en bulletin */
 try{if(document.getElementById('ess-box')&&document.getElementById('ess-box').innerHTML&&!document.body.classList.contains('verrouille'))renderBulletin()}catch(e){}
