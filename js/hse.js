@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.12.2';   // 19/10/2026 — brique « VMS & QHP » : VMS par personne (objectif annuel, dates, classement) + classement des animateurs QHP ; V3.3.4 14/10 : Reporting autonome
+const APP_VERSION = 'V3.13';   // 19/10/2026 — brique « VMS & QHP » : VMS par personne (objectif annuel, dates, classement) + classement des animateurs QHP ; V3.3.4 14/10 : Reporting autonome
 /* V3.12 : les listes synchronisées avec le serveur (rep-sync), en un seul endroit */
 const LISTES_SYNC=['mensuel','incidents','remontees','se','objectifs','chantiers','vmsPersonnes','vmsVisites'];
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';
@@ -1028,7 +1028,7 @@ function renderQhp(){
   /* --- les conducteurs --- */
   const lc=q.conducteurs||[], actifs=lc.filter(c=>c.total>0).length;
   const maxc=Math.max(1,...lc.map(c=>c.total||0));
-  h+='<h3>👷 Les conducteurs de travaux <span class="hint" style="font-weight:400">— QHP animés sur 12 mois glissants</span></h3>';
+  h+='<h3>👷 Les encadrants chantiers <span class="hint" style="font-weight:400">— QHP animés sur 12 mois glissants</span></h3>';
   h+='<div class="qlist">';
   lc.forEach(c=>{
     h+='<div class="qrow'+(c.total?'':' vide')+'">'
@@ -1038,7 +1038,7 @@ function renderQhp(){
       +'<span class="qd">'+(c.chantiers||0)+' chantier'+((c.chantiers||0)>1?'s':'')
       +' · '+(c.participants||0)+' participation'+((c.participants||0)>1?'s':'')+'</span></div>';
   });
-  h+='</div><p class="hint"><b>'+actifs+'</b> conducteur(s) sur '+lc.length+' ont animé au moins un QHP.</p>';
+  h+='</div><p class="hint"><b>'+actifs+'</b> encadrant(s) chantiers sur '+lc.length+' ont animé au moins un QHP.</p>';
   if(q.condInconnus&&q.condInconnus.length)
     h+='<p class="hint">⚠️ Animateur non reconnu : '+q.condInconnus.map(x=>esc(x.t)+' ('+x.n+')').join(', ')
       +' — corrige l’orthographe dans la fiche QHP pour qu’il compte.</p>';

@@ -1,4 +1,4 @@
-const APP_VERSION='V3.12.2';   // 19/10/2026 — arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.13';   // 20/10/2026 — bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -1857,7 +1857,7 @@ function qhpParConducteur(q){
   if(!l.length)return '';
   const actifs=l.filter(c=>c.total>0).length;
   const max=Math.max(1,...l.map(c=>c.total||0));
-  let h='<h3 style="margin-top:20px">👷 Les conducteurs de travaux <span class="hint" style="font-weight:400">— QHP animés sur 12 mois glissants</span></h3>';
+  let h='<h3 style="margin-top:20px">👷 Les encadrants chantiers <span class="hint" style="font-weight:400">— QHP animés sur 12 mois glissants</span></h3>';
   h+='<div class="qlist">';
   l.forEach(c=>{
     h+='<div class="qrow'+(c.total?'':' vide')+'">'
@@ -1869,12 +1869,12 @@ function qhpParConducteur(q){
       +'</div>';
   });
   h+='</div>';
-  h+='<p class="hint"><b>'+actifs+'</b> conducteur(s) sur '+l.length+' ont animé au moins un QHP. '
+  h+='<p class="hint"><b>'+actifs+'</b> encadrant(s) chantiers sur '+l.length+' ont animé au moins un QHP. '
     +'Ceux qui sont à zéro restent affichés en pâle : ce sont eux qu\'il faut relancer.</p>';
   if(q.condInconnus&&q.condInconnus.length)
     h+='<p class="hint">⚠️ Animateur non reconnu dans la liste des collaborateurs : '+q.condInconnus.map(x=>esc(x.t)+' ('+x.n+')').join(', ')+' — corrige l’orthographe dans la fiche QHP pour qu’il compte.</p>';
   h+='<details class="grille-det"><summary>Voir le détail mois par mois</summary>';
-  h+='<div class="tbl-wrap" style="margin-top:8px"><table class="grille"><thead><tr><th>Conducteur</th><th class="sec">Agence</th>'+enteteMois(q.mois)+'<th style="text-align:center">Total</th><th style="text-align:center">Chantiers</th></tr></thead><tbody>';
+  h+='<div class="tbl-wrap" style="margin-top:8px"><table class="grille"><thead><tr><th>Encadrant chantier</th><th class="sec">Agence</th>'+enteteMois(q.mois)+'<th style="text-align:center">Total</th><th style="text-align:center">Chantiers</th></tr></thead><tbody>';
   l.forEach(c=>{
     h+='<tr'+(c.total?'':' class="pale"')+'><td><b>'+esc(c.nom)+'</b></td><td class="sec">'+esc(c.agence)+'</td>';
     c.mois.forEach(n=>{h+='<td class="mcol">'+(n?'<b>'+n+'</b>':'<span class="z">·</span>')+'</td>'});
