@@ -301,14 +301,15 @@ function renderBulletin(){
     let conds=(q&&Array.isArray(q.conducteurs)?q.conducteurs:[]).filter(c=>!agenceChoisie||(c.agence||'')===agenceChoisie);
     const podAn=bulVueCarte('podq')==='annee';   // V3.14 : curseur du podium
     const score=c=>podAn?(c.mois||[]).reduce((s,n,i)=>s+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an)?n:0),0):(idxQ>=0&&c.mois?c.mois[idxQ]:0);
-    conds=conds.map(c=>({nom:c.nom,agence:c.agence,n:score(c),part:c.participants||0})).filter(c=>c.n>0).sort((a,b)=>b.n-a.n||b.part-a.part).slice(0,5);
+    conds=conds.map(c=>({nom:c.nom,agence:c.agence,n:score(c),part:c.participants||0})).filter(c=>c.n>0).sort((a,b)=>b.n-a.n||b.part-a.part||a.nom.localeCompare(b.nom,'fr'));
+    if(!podAn)conds=conds.slice(0,5);   // V3.15 : vue Année = tout le classement ; vue Mois = les 5 premiers
     const titreP='<h3>🏆 Encadrants chantiers — QHP '+esc(podAn?an:BUL_MOIS_C[Number(bulMois.slice(5,7))-1])+' '+bulSeg('podq')+'</h3>';
     if(!conds.length)h+='<div class="bul-card bul-podium">'+titreP+'<p class="muted">Aucun QHP animé '+(podAn?'cette année':'ce mois-ci')+' pour l’instant.</p></div>';
-    if(conds.length){const med=['🥇','🥈','🥉','🏅','🏅'];
+    if(conds.length){
       /* égalité = même médaille (deux premiers ex æquo → deux 🥇, le suivant 🥉) */
       let rang=0;conds.forEach((c,i)=>{if(i>0&&c.n===conds[i-1].n)c.r=conds[i-1].r;else{rang=i;c.r=rang}});
-      h+='<div class="bul-card bul-podium">'+titreP+'<ol class="bul-pod">'
-        +conds.map((c,i)=>'<li><span class="med">'+med[c.r]+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie?'':' <span class="apill ag-'+esc(c.agence||'')+'">'+esc(c.agence||'')+'</span>')+'</span><b>'+c.n+' QHP</b></li>').join('')
+      h+='<div class="bul-card bul-podium">'+titreP+'<ol class="bul-pod'+(conds.length>5?' long':'')+'">'
+        +conds.map((c,i)=>'<li><span class="med">'+bulMed(c.r)+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie||!c.agence?'':' <span class="apill ag-'+esc(c.agence)+'">'+esc(c.agence)+'</span>')+'</span><b>'+c.n+' QHP</b></li>').join('')
         +'</ol><p class="hint" style="margin:6px 0 0">Bravo à eux — et merci à tous ceux qui animent les quarts d’heure prévention.</p></div>';
     }
   }
@@ -333,6 +334,8 @@ function renderBulletin(){
 /* ===== V3.13 — VMS DANS LE BULLETIN : réalisation du mois, de l'année, et podium =====
    Données : rep.vms.personnes [{nom, agence, objectif (VMS par an), dates:['AAAA-MM-JJ']}] (serveur V31.5,
    onglets VMS_PERSONNES / VMS_VISITES du Reporting HSE). Objectif du mois = objectifs annuels / 12. */
+/* V3.15 : médaille d'un rang (0 = premier) ; au-delà du 5e, le numéro du rang */
+function bulMed(r){return r<3?['🥇','🥈','🥉'][r]:(r<5?'🏅':'<span class="rg">'+(r+1)+'</span>')}
 function bulCarteVms(an){
   const g=(typeof repGlobal==='function'?repGlobal():null)||{},v=g.vms;
   const titre='<h3>🦺 VMS — visites managériales de sécurité '+bulSeg('vms')+'</h3>';
@@ -351,10 +354,11 @@ function bulCarteVms(an){
     +'<div class="bul-vbar" title="trait = où on devrait en être fin '+esc(bulLib(bulMois).toLowerCase())+' ('+fmt(objDate)+' VMS)"><i style="width:'+Math.min(100,pcAn||0)+'%"></i><span style="left:'+Math.min(100,mi/12*100)+'%"></span></div>'
     +'<div class="bul-sub">'+(pcAn!==null?pcAn+' % de l’objectif annuel · ':'')+'attendu à date ≈ '+fmt(objDate)+'</div></div></div>';
   const sc=p=>(p.dates||[]).filter(estAn?dansAn:dansMois).length;
-  let L=P.map(p=>({nom:p.nom,agence:p.agence,n:sc(p),obj:Number(p.objectif)||0})).filter(p=>p.n>0).sort((a,b)=>b.n-a.n||a.nom.localeCompare(b.nom,'fr')).slice(0,5);
-  if(L.length){const med=['🥇','🥈','🥉','🏅','🏅'];L.forEach((c,i)=>{c.r=(i>0&&c.n===L[i-1].n)?L[i-1].r:i});
-    h+='<div class="bul-vms-k" style="margin-top:8px">🏆 Podium '+(estAn?esc(an):esc(bulLib(bulMois).toLowerCase()))+'</div><ol class="bul-pod">'
-      +L.map(c=>'<li><span class="med">'+med[c.r]+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie||!c.agence?'':' <span class="apill ag-'+esc(c.agence)+'">'+esc(c.agence)+'</span>')+'</span><b>'+c.n+' VMS'+(estAn&&c.obj?' <span class="muted">/ '+c.obj+'</span>':'')+'</b></li>').join('')+'</ol>'}
+  let L=P.map(p=>({nom:p.nom,agence:p.agence,n:sc(p),obj:Number(p.objectif)||0})).filter(p=>p.n>0).sort((a,b)=>b.n-a.n||a.nom.localeCompare(b.nom,'fr'));
+  if(!estAn)L=L.slice(0,5);   // V3.15 : vue Année = tout le classement
+  if(L.length){L.forEach((c,i)=>{c.r=(i>0&&c.n===L[i-1].n)?L[i-1].r:i});
+    h+='<div class="bul-vms-k" style="margin-top:8px">🏆 Podium '+(estAn?esc(an):esc(bulLib(bulMois).toLowerCase()))+'</div><ol class="bul-pod'+(L.length>5?' long':'')+'">'
+      +L.map(c=>'<li><span class="med">'+bulMed(c.r)+'</span><span class="nom">'+esc(c.nom)+(agenceChoisie||!c.agence?'':' <span class="apill ag-'+esc(c.agence)+'">'+esc(c.agence)+'</span>')+'</span><b>'+c.n+' VMS'+(estAn&&c.obj?' <span class="muted">/ '+c.obj+'</span>':'')+'</b></li>').join('')+'</ol>'}
   else h+='<p class="muted" style="margin:8px 0 0">Aucune VMS '+(estAn?'cette année':'ce mois-ci')+' pour l’instant.</p>';
   return h+'</div>';
 }

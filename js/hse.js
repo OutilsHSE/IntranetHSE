@@ -52,7 +52,7 @@ const SEED = {"mensuel": [], "incidents": [], "remontees": [], "objectifs": [], 
  *  Une seule règle : ce qui est saisi ici part dans le classeur, et l'intranet
  *  l'affiche. Aucune saisie ailleurs.
  * ========================================================================= */
-const APP_VERSION = 'V3.14';   // 19/10/2026 — brique « VMS & QHP » : VMS par personne (objectif annuel, dates, classement) + classement des animateurs QHP ; V3.3.4 14/10 : Reporting autonome
+const APP_VERSION = 'V3.15';   // 19/10/2026 — brique « VMS & QHP » : VMS par personne (objectif annuel, dates, classement) + classement des animateurs QHP ; V3.3.4 14/10 : Reporting autonome
 /* V3.12 : les listes synchronisées avec le serveur (rep-sync), en un seul endroit */
 const LISTES_SYNC=['mensuel','incidents','remontees','se','objectifs','chantiers','vmsPersonnes','vmsVisites'];
 const LS = 'rhse_v1', LS_CONF = 'rhse_conf_v1';

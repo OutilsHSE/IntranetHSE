@@ -1,4 +1,4 @@
-const APP_VERSION='V3.14';   // 20/10/2026 — bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.15';   // 20/10/2026 — nouveaux arrivants en cartes sur téléphone ; podiums QHP et VMS : tout le classement en vue Année. V3.14 : bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -1809,13 +1809,13 @@ function renderArrivants(){
       const faits=JALONS.filter(j=>jalonEtat(a,j.c)!=='todo').length, complet=arrivComplet(a);
       h+='<tr class="'+(complet?'ok':'')+(arrivAncien(a)?' ancien':'')+'">'
         +'<td class="c-nom"><div class="an">'+esc(a.nom)+'</div><div class="asub"><span class="apill">'+esc(a.statut||'—')+'</span>'+(a.poste?' <span class="amut">'+esc(a.poste)+'</span>':'')+'</div></td>'
-        +'<td class="c-date">'+(a.arrivee?esc(frDate(a.arrivee)):'<span class="muted">—</span>')+'</td>';
+        +'<td class="c-date" data-l="Arrivée">'+(a.arrivee?esc(frDate(a.arrivee)):'<span class="muted">—</span>')+'</td>';
       JALONS.forEach(j=>{
         const et=jalonEtat(a,j.c), v=jalonJour(a,j.c);
         const envoi=!!jalonsEnvoi[a.id+'|'+j.c];
         const lib=et==='fait'?'✓ '+frDate(v):(et==='na'?'NA':'');
         const tt=j.lib+' : '+(et==='fait'?'fait le '+frDate(v):(et==='na'?'non concerné':'à faire'))+' — clic : changer';
-        h+='<td class="c-j"><button class="jc '+et+(envoi?' envoi':'')+'" onclick="jalonMenu(event,\''+esc(a.id)+'\',\''+j.c+'\')" title="'+esc(tt)+'">'+(lib||'<i></i>')+(envoi?'<em class="jsab" title="Enregistrement en cours…">⏳</em>':'')+'</button></td>';
+        h+='<td class="c-j" data-l="'+esc(j.ico+' '+(j.court||j.lib))+'"><button class="jc '+et+(envoi?' envoi':'')+'" onclick="jalonMenu(event,\''+esc(a.id)+'\',\''+j.c+'\')" title="'+esc(tt)+'">'+(lib||'<i></i>')+(envoi?'<em class="jsab" title="Enregistrement en cours…">⏳</em>':'')+'</button></td>';
       });
       h+='<td class="c-etat">'+(complet?'<span class="aok">✔ complet</span>':'<span class="aprog2"><b>'+faits+'</b>/'+JALONS.length+'<i style="width:'+Math.round(100*faits/JALONS.length)+'%"></i></span>')+'</td>'
         +'<td class="c-act no-print"><button class="btn btn-ghost btn-sm" onclick="openArrivant(\''+esc(a.id)+'\')" title="Détails de la fiche (tuteur, chantier, notes)">✏️</button>'
