@@ -1,4 +1,4 @@
-const APP_VERSION='V3.15';   // 20/10/2026 — nouveaux arrivants en cartes sur téléphone ; podiums QHP et VMS : tout le classement en vue Année. V3.14 : bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.16';   // 24/11/2026 — BUREAU D’ÉTUDES : nouvelle rubrique d’outils (tuile de l’appli « Visite terrain BE » + tuile « Visites terrain — récap »), nouvelle page « Visites terrain BE » (js/be.js). Avant (V3.15, 20/10/2026) : nouveaux arrivants en cartes sur téléphone ; podiums QHP et VMS : tout le classement en vue Année. V3.14 : bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -14,7 +14,8 @@ function frDate(iso){if(!iso)return '';const j=jourDe(iso);const d=new Date(j+'T
 function frDateCourt(iso){if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')}
 
 /* ==================== OUTILS PAR DÉFAUT ==================== */
-const CATS=['Pour évaluer les risques','Pour prévenir les risques','Pour sensibiliser les nouveaux arrivants','Culture HSE','Outils service HSE'];
+const CAT_BE='Bureau d’études';   // V3.16
+const CATS=['Pour évaluer les risques','Pour prévenir les risques','Pour sensibiliser les nouveaux arrivants','Culture HSE',CAT_BE,'Outils service HSE'];
 const CAT_HSE='Outils service HSE';
 const DEF_OUTILS=[
  // — Pour évaluer les risques —
@@ -39,7 +40,10 @@ const DEF_OUTILS=[
  {id:'suiviqhp',cat:CAT_HSE,ico:'📋',nom:'Suivi des QHP',desc:'Fiches, bilan mensuel et annuel des Quarts d’Heure Prévention',url:'',hse:true},
  {id:'suivivigi',cat:CAT_HSE,ico:'📊',nom:'Suivi des Vigiminutes',desc:'Taux de réalisation hebdo par chantier et par bateau',url:'https://outilshse.github.io/Vigiminutes/',hse:true},
  {id:'repapp',cat:CAT_HSE,ico:'✍️',nom:'Reporting HSE',desc:'Saisie : mensuel, accidentologie, santé-environnement, flashs, objectifs',url:'',hse:true},
- {id:'reporting',cat:CAT_HSE,ico:'🗂️',nom:'Sheets de reporting',desc:'Accès direct aux classeurs Google',links:[],hse:true}
+ {id:'reporting',cat:CAT_HSE,ico:'🗂️',nom:'Sheets de reporting',desc:'Accès direct aux classeurs Google',links:[],hse:true},
+ // — Bureau d’études (V3.16) —
+ {id:'visitebe',cat:CAT_BE,ico:'🧭',nom:'Visite terrain BE',desc:'Grille HSE de reconnaissance avant travaux : contraintes du site, photos, décision, PDF',url:'https://outilshse.github.io/VisiteTerrainBE/'},
+ {id:'recapbe',cat:CAT_BE,ico:'🗂️',nom:'Visites terrain — récap',desc:'Les contraintes relevées par chantier, rangées par agence',url:''}
 ].map((o,i)=>Object.assign({url:'',links:[],hse:false},o,{ordre:(i+1)*10,maj:EPOCH,masque:false}));
 
 /* ==================== KPI : DÉFINITIONS ==================== */
@@ -321,6 +325,7 @@ function ventilationDispo(){const g=repGlobal();return !!(g&&g.parAgence)}
 function setAgence(a){agenceChoisie=a;conf.agence=a;saveConfLS();renderDash();renderEssentiels();majBascule();
   if(typeof arrivFiltre!=='undefined'){arrivFiltre.agence=a||'';if(document.getElementById('v-arriv').classList.contains('active'))renderArrivants()}
   try{if(document.getElementById('v-retex').classList.contains('active')&&typeof renderRetex==='function')renderRetex();}catch(e){}
+  try{if(document.getElementById('v-be').classList.contains('active')&&typeof renderBe==='function')renderBe();}catch(e){}   // V3.16
   try{if(document.getElementById('v-rem').classList.contains('active'))renderRemontees();if(document.getElementById('v-hse').classList.contains('active'))renderTodo()}catch(e){}
 }
 function objData(){return objAuto||(demoMode()?DEMO_OBJ:null)}
@@ -397,6 +402,7 @@ function go(v){
   if(v==='v-rem'&&typeof renderRemontees==='function')renderRemontees();
   if(v==='v-qhp'&&typeof renderQhp==='function')renderQhp();
   if(v==='v-retex'&&typeof renderRetex==='function'){retexVue.id=null;renderRetex()}
+  if(v==='v-be'&&typeof renderBe==='function'){renderBe();beActualiser(false)}   // V3.16 : affichage immédiat, puis version fraîche
   if(v==='v-hse'&&typeof renderTodo==='function')renderTodo();
   document.body.classList.remove('menuopen');
   majNav();
@@ -414,13 +420,15 @@ function majNav(){
    affiché dans un cadre : il s'ouvre dans son propre onglet (hse.html), où il retrouve
    seul le code éditeur de cet appareil (même adresse, même stockage local). */
 /* ==================== PORTAIL ==================== */
-const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="10" height="8" rx="1.5"/><path d="M3 12.5h10M8 9V6.5"/><g stroke="#C25A08"><path d="M16 9.5h4.5M18.5 7.5l2 2-2 2"/><path d="M20.5 15.5H16M18 13.5l-2 2 2 2"/></g></svg>','pdp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3.5h6V5"/><g stroke="#C25A08"><path d="M9 13.5l2.3 2.3L16 11"/></g></svg>','pae':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M10 17c0-3.2 2.2-5 5-5 0 3.2-2.2 5-5 5zM10 17c1-1.6 2.4-2.8 4-3.4"/></g></svg>','paq':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M12.5 13.5c1.3 0 2-.7 3-.7s1.7.7 3 .7c0 3-1.4 4.8-3 5.5-1.6-.7-3-2.5-3-5.5z"/></g></svg>','vigiminute':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7"/><path d="M12 6.5V4M10 3.5h4"/><g stroke="#C25A08"><path d="M12 13.5l3.2-2.4"/></g></svg>','vms':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.6"/><path d="M4.5 19c0-3 2-4.8 4.5-4.8S13.5 16 13.5 19"/><circle cx="16" cy="9" r="2"/><path d="M15.5 14.5c2.4 0 4 1.6 4 4.1"/><g stroke="#C25A08"><path d="M15.6 17.7l1.3 1.3 2.3-2.4"/></g></svg>','crhse':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 11.5h6"/><g stroke="#C25A08"><path d="M12.5 18.5l5.5-5.5 1.8 1.8-5.5 5.5-2.3.5z"/></g></svg>','emargement':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12v8.5H9.5L6 16.5v-3H4z"/><g stroke="#C25A08"><path d="M13 19.5c1.4-1.8 2.6.9 4.6-1M19 12.5l1.5 1.5"/></g></svg>','accueilsecu':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="7.5" r="3"/><path d="M4 20c0-3.6 2.4-5.6 5.5-5.6 1 0 1.9.2 2.7.6"/><g stroke="#C25A08"><path d="M14.5 14.2c1 0 1.6-.6 2.4-.6s1.4.6 2.4.6c0 2.6-1.1 4.2-2.4 4.8-1.3-.6-2.4-2.2-2.4-4.8z"/></g></svg>','fformation':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="11" rx="1.8"/><path d="M12 16v3M8.5 19h7"/><circle cx="9" cy="9.3" r="1.7"/><path d="M6.2 13.5c.5-1.4 1.6-2 2.8-2s2.3.6 2.8 2"/><g stroke="#C25A08"><path d="M14.8 9.6l1.4 1.4 2.4-2.5"/></g></svg>','autoconduite':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5V10h6l1.5 3v2.5"/><circle cx="6.5" cy="18" r="1.7"/><circle cx="11" cy="18" r="1.7"/><path d="M15 8v8.5M15 16.5h4.5"/><g stroke="#C25A08"><path d="M17 6.5l1.3 1.3 2.3-2.4"/></g></svg>','retex':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M17.5 3.5l.3 3 3-.3"/><g stroke="#C25A08"><path d="M12.8 7.5l-3 5h2.6l-1.6 4 4.6-5.8h-2.7l2-3.2z"/></g></svg>','analyseacc':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5L21 19.5H3z"/><g stroke="#C25A08"><path d="M12 10v4M12 16.6v.01"/></g></svg>','planning':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1.8"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/><g stroke="#C25A08"><path d="M9.5 15l2 2 3.5-3.5"/></g></svg>','suiviqhp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h15M7.5 19.5v-5M11.5 19.5v-9M15.5 19.5v-7"/><g stroke="#C25A08"><circle cx="17.5" cy="7" r="2.6"/><path d="M16.5 7l.8.8 1.4-1.5"/></g></svg>','suivivigi':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5c2.4-3.8 5.6-5.7 8.5-5.7s6.1 1.9 8.5 5.7c-2.4 3.8-5.6 5.7-8.5 5.7s-6.1-1.9-8.5-5.7z"/><g stroke="#C25A08"><path d="M7.5 14.5l2.8-2.8 1.9 1.9 4-4M16.2 9.6h2.4v2.4"/></g></svg>','reporting':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1.8"/><path d="M4 9.5h16M9.5 9.5V20"/><g stroke="#C25A08"><rect x="13" y="13" width="4" height="4" rx=".8" fill="#C25A08" stroke="none"/></g></svg>'};
+const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="10" height="8" rx="1.5"/><path d="M3 12.5h10M8 9V6.5"/><g stroke="#C25A08"><path d="M16 9.5h4.5M18.5 7.5l2 2-2 2"/><path d="M20.5 15.5H16M18 13.5l-2 2 2 2"/></g></svg>','pdp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3.5h6V5"/><g stroke="#C25A08"><path d="M9 13.5l2.3 2.3L16 11"/></g></svg>','pae':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M10 17c0-3.2 2.2-5 5-5 0 3.2-2.2 5-5 5zM10 17c1-1.6 2.4-2.8 4-3.4"/></g></svg>','paq':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/><g stroke="#C25A08"><path d="M12.5 13.5c1.3 0 2-.7 3-.7s1.7.7 3 .7c0 3-1.4 4.8-3 5.5-1.6-.7-3-2.5-3-5.5z"/></g></svg>','vigiminute':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="7"/><path d="M12 6.5V4M10 3.5h4"/><g stroke="#C25A08"><path d="M12 13.5l3.2-2.4"/></g></svg>','vms':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.6"/><path d="M4.5 19c0-3 2-4.8 4.5-4.8S13.5 16 13.5 19"/><circle cx="16" cy="9" r="2"/><path d="M15.5 14.5c2.4 0 4 1.6 4 4.1"/><g stroke="#C25A08"><path d="M15.6 17.7l1.3 1.3 2.3-2.4"/></g></svg>','crhse':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 11.5h6"/><g stroke="#C25A08"><path d="M12.5 18.5l5.5-5.5 1.8 1.8-5.5 5.5-2.3.5z"/></g></svg>','emargement':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12v8.5H9.5L6 16.5v-3H4z"/><g stroke="#C25A08"><path d="M13 19.5c1.4-1.8 2.6.9 4.6-1M19 12.5l1.5 1.5"/></g></svg>','accueilsecu':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="7.5" r="3"/><path d="M4 20c0-3.6 2.4-5.6 5.5-5.6 1 0 1.9.2 2.7.6"/><g stroke="#C25A08"><path d="M14.5 14.2c1 0 1.6-.6 2.4-.6s1.4.6 2.4.6c0 2.6-1.1 4.2-2.4 4.8-1.3-.6-2.4-2.2-2.4-4.8z"/></g></svg>','fformation':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="11" rx="1.8"/><path d="M12 16v3M8.5 19h7"/><circle cx="9" cy="9.3" r="1.7"/><path d="M6.2 13.5c.5-1.4 1.6-2 2.8-2s2.3.6 2.8 2"/><g stroke="#C25A08"><path d="M14.8 9.6l1.4 1.4 2.4-2.5"/></g></svg>','autoconduite':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5V10h6l1.5 3v2.5"/><circle cx="6.5" cy="18" r="1.7"/><circle cx="11" cy="18" r="1.7"/><path d="M15 8v8.5M15 16.5h4.5"/><g stroke="#C25A08"><path d="M17 6.5l1.3 1.3 2.3-2.4"/></g></svg>','retex':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M17.5 3.5l.3 3 3-.3"/><g stroke="#C25A08"><path d="M12.8 7.5l-3 5h2.6l-1.6 4 4.6-5.8h-2.7l2-3.2z"/></g></svg>','analyseacc':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5L21 19.5H3z"/><g stroke="#C25A08"><path d="M12 10v4M12 16.6v.01"/></g></svg>','planning':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="14" rx="1.8"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/><g stroke="#C25A08"><path d="M9.5 15l2 2 3.5-3.5"/></g></svg>','suiviqhp':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 19.5h15M7.5 19.5v-5M11.5 19.5v-9M15.5 19.5v-7"/><g stroke="#C25A08"><circle cx="17.5" cy="7" r="2.6"/><path d="M16.5 7l.8.8 1.4-1.5"/></g></svg>','suivivigi':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5c2.4-3.8 5.6-5.7 8.5-5.7s6.1 1.9 8.5 5.7c-2.4 3.8-5.6 5.7-8.5 5.7s-6.1-1.9-8.5-5.7z"/><g stroke="#C25A08"><path d="M7.5 14.5l2.8-2.8 1.9 1.9 4-4M16.2 9.6h2.4v2.4"/></g></svg>','reporting':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1.8"/><path d="M4 9.5h16M9.5 9.5V20"/><g stroke="#C25A08"><rect x="13" y="13" width="4" height="4" rx=".8" fill="#C25A08" stroke="none"/></g></svg>',
+  'visitebe':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><g stroke="#C25A08"><path d="M9.3 10.6l1.9 1.9 3.5-3.7"/></g></svg>','recapbe':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.3h17M3.5 14.7h17"/><g stroke="#C25A08"><path d="M15.2 6l1.4 1.4L18 6M15.2 11.3l1.4 1.4 1.4-1.4M15.2 16.7l1.4 1.4 1.4-1.4"/></g></svg>'};
 function outilsTries(){return state.outils.filter(o=>!o.supprime).sort((a,b)=>(a.ordre||0)-(b.ordre||0))}
 function iconeHtml(o){const s=ICONES[o.id];return '<span class="ti'+(s?'':' emo')+'">'+(s||esc(o.ico||'🧰'))+'</span>'}
-const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Outils service HSE':'#2E86C8'};
+const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Bureau d’études':'#0E94AB','Outils service HSE':'#2E86C8'};
 function tuileHtml(o){
   if(o.id==='modeop')return '<div class="tile" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'
   if(o.id==='retex')return '<div class="tile" onclick="go(\'v-retex\')" title="RETEX de fin de chantier">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'   // V3.3.3;
+  if(o.id==='recapbe')return '<div class="tile" onclick="go(\'v-be\')" title="Visites terrain du bureau d’études — récapitulatif par agence">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';   // V3.16
   const liens=(o.links||[]).filter(l=>l&&l.u);
   if(liens.length)return '<div class="tile menu" onclick="openLiens(\''+o.id+'\')" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span><span class="men">▾ '+liens.length+'</span></div>';
   const u=lienOutil(o);   // V28 : le lien de branchement reçu du serveur l'emporte sur l'adresse nue
@@ -2152,6 +2160,7 @@ function appliquer(d,origine){
   if(Array.isArray(d.arrivants))state.arrivants=d.arrivants;
   if(Array.isArray(d.remontees))state.remontees=d.remontees;        // V3.3
   if(Array.isArray(d.retex))state.retex=d.retex;                    // V3.3.3
+  if(d.visitesBe&&typeof beRecevoir==='function')beRecevoir(d.visitesBe);   // V3.16 — visites terrain du bureau d'études
   if(Array.isArray(d.qhpThemes))state.qhpThemes=d.qhpThemes;        // V3.3 p3
   if(d.tombQhpThemes&&typeof d.tombQhpThemes==='object')state.tombQhpThemes=d.tombQhpThemes;
   if(d.todo&&typeof d.todo==='object')state.todo=d.todo;
@@ -2177,7 +2186,8 @@ function rafraichirEcranActif(){
     if(act&&act.id==='v-rem'&&typeof renderRemontees==='function')renderRemontees();
     if(act&&act.id==='v-qhp'&&typeof renderQhp==='function')renderQhp();
     if(act&&act.id==='v-hse'&&typeof renderTodo==='function')renderTodo();
-    if(act&&act.id==='v-modeop')renderBanque();if(act&&act.id==='v-retex'&&typeof renderRetex==='function')renderRetex();}catch(e){}
+    if(act&&act.id==='v-modeop')renderBanque();if(act&&act.id==='v-retex'&&typeof renderRetex==='function')renderRetex();
+    if(act&&act.id==='v-be'&&typeof renderBe==='function')renderBe();}catch(e){}
 }
 async function syncOuLecture(manuel,lectureSeule){
   if(!webhookLecture()){if(manuel)toast('Renseigne d’abord l’adresse du webhook',true);return false}
@@ -2313,7 +2323,7 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}try{indexedDB.deleteDatabase('ihse_images')}catch(e){}saveConfLS()}   // V3.9.2 : les images gardées dans le navigateur partent avec le verrou
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};try{state.visitesBe=[];delete state.visitesBeEtat;save()}catch(e){}qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}try{indexedDB.deleteDatabase('ihse_images')}catch(e){}saveConfLS()}   // V3.9.2 : les images gardées dans le navigateur partent avec le verrou
 function verrouExpire(){
   const n=Number(conf.expireJours); if(!(n>0))return false;
   const t=Date.parse(conf.deverrouilleLe||''); if(!isFinite(t))return true;   // déverrouillé avant la V28.3 : on redemande une fois
@@ -2394,6 +2404,186 @@ async function demarrer(){
   const r=await essayerMotDePasse('');
   if(r==='ok'){ouvrirAppli();lancerSynchros()}
   else if(r==='reseau')montrerVerrou('Serveur injoignable. Vérifie ta connexion, puis réessaie.');
+}
+
+/* ==================== V3.16 — VISITES TERRAIN BE ==================== */
+/* La page « Visites terrain BE » : le récapitulatif des reconnaissances avant travaux du
+   bureau d'études — une ligne par visite, rangées par agence, qu'on déplie pour lire les
+   contraintes relevées, les moyens de prévention, la décision et les photos.
+   Les visites sont saisies dans l'appli « Visite terrain BE » (sa tuile est dans la même
+   rubrique). Ici on ne fait que LIRE : les données arrivent du serveur de l'intranet, après
+   le mot de passe de consultation. Rien n'est écrit dans ce fichier : ni chantier, ni nom,
+   ni adresse.
+   Livrée DANS intranet.js (et non dans un fichier à part) pour que la mise à jour tienne en
+   deux fichiers — js/intranet.js et css/intranet.css — sans toucher à index.html ni à sw.js :
+   la section de la page est donc créée ici. */
+(function(){if(document.getElementById('v-be'))return;const r=document.getElementById('v-retex');if(r)r.insertAdjacentHTML('afterend','<section class="view" id="v-be"></section>')})();
+const beFiltre={q:'',non:false};
+const beOuvert=new Set();                 // les lignes dépliées (gardées quand la page se redessine)
+const beEtat={enCours:false,quand:0,erreur:''};
+
+function beListe(){return Array.isArray(state.visitesBe)?state.visitesBe:[]}
+function beInfos(){return (state.visitesBeEtat&&typeof state.visitesBeEtat==='object')?state.visitesBeEtat:null}
+/* « 2026 11 007 — RCE Automne » → numéro d'affaire à part, titre en gras (tiret court, long ou cadratin) */
+function beNumTitre(ch){
+  const s=String(ch||'').replace(/\s+/g,' ').trim();
+  const m=s.match(/^(\d{4}\s?\d{2}\s?\d{3})\s*(?:(IDF|NA|BPL)\b)?\s*[-–—:·]?\s*(.*)$/);
+  return m&&m[3]?{num:m[1],titre:m[3]}:{num:'',titre:s};
+}
+function beCherche(v){
+  const q=beFiltre.q.trim().toLowerCase();if(!q)return true;
+  const t=[v.chantier,v.responsable,v.synthese,v.date].concat((v.resume||[]).map(x=>x.rubrique+' '+(x.points||[]).join(' ')+' '+(x.vigilance||''))).join(' ').toLowerCase();
+  return q.split(/\s+/).every(m=>t.includes(m));
+}
+function setBeFiltre(k,v){
+  beFiltre[k]=v;renderBe();
+  if(k==='q'){const e=document.getElementById('be-q');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}}
+}
+/* le lien de l'appli : celui de sa tuile (déjà branché quand le serveur l'a tendu) */
+function beLienAppli(){const o=(state.outils||[]).find(x=>x.id==='visitebe');return o?lienOutil(o):''}
+function beLienVisite(id){const u=beLienAppli();return /#config=/.test(u)?u+'&visite='+encodeURIComponent(id):''}
+
+/* ---------- les données : celles de la lecture, rafraîchies à l'ouverture de la page ---------- */
+function beRecevoir(d){
+  if(!d||typeof d!=='object')return;
+  if(Array.isArray(d.liste))state.visitesBe=d.liste;
+  state.visitesBeEtat={branche:d.branche!==false,verrouAbsent:!!d.verrouAbsent,erreur:String(d.erreur||''),calculeLe:String(d.calculeLe||'')};
+}
+async function beActualiser(manuel){
+  if(beEtat.enCours)return;
+  if(!webhookLecture()){if(manuel)toast('Intranet pas encore branché à son serveur',true);return}
+  if(!manuel&&Date.now()-beEtat.quand<60000)return;            // au plus une demande par minute en naviguant
+  beEtat.enCours=true;beEtat.erreur='';beMajBarre();
+  try{
+    const j=await appel({action:'visites-be'},30000);
+    beRecevoir(j.data&&j.data.visitesBe);save();beEtat.quand=Date.now();
+    if(manuel)toast('Visites terrain à jour ✓');
+  }catch(e){
+    if(e&&e.verrou){oublierVerrou();montrerVerrou('Le mot de passe a changé. Redemande-le au service HSE.')}
+    /* un serveur d'avant la V33 ne connaît pas l'action : on le dit à l'éditeur, on ne dérange pas un lecteur */
+    beEtat.erreur=/inconnue/i.test(String(e&&e.message))?'serveur':String((e&&e.message)||'erreur');
+    if(manuel)toast(beEtat.erreur==='serveur'?'Le serveur de l’intranet n’est pas encore en V33':'Mise à jour impossible : '+beEtat.erreur,true);
+  }finally{
+    beEtat.enCours=false;
+    if(document.getElementById('v-be').classList.contains('active'))renderBe();
+  }
+}
+function beMajBarre(){const b=document.getElementById('be-maj');if(b){b.disabled=beEtat.enCours;b.textContent=beEtat.enCours?'⏳ Mise à jour…':'↻ Actualiser'}}
+
+/* ---------- l'écran ---------- */
+function beDecision(v){
+  if(v.realisable==='non')return '<span class="be-dec ko">✕ Non réalisable en l’état</span>';
+  if(v.realisable==='oui')return '<span class="be-dec ok">✓ Réalisable</span>';
+  return '<span class="be-dec nd">Décision non renseignée</span>';
+}
+function beTexte(t){return esc(t).replace(/\n/g,'<br>')}
+function beVignettes(ids,tous){
+  return ids.length?'<div class="be-gal">'+ids.map(id=>'<div class="rx-gi" data-bph="'+esc(id)+'" onclick="beZoom(\''+esc(tous.join(','))+'\',\''+esc(id)+'\')" title="Agrandir la photo"></div>').join('')+'</div>':'';
+}
+function beDetailHtml(v){
+  const photos=(v.photos||[]).filter(p=>p&&p.id), tous=photos.map(p=>p.id), vus={};
+  let h='';
+  if(v.domDecharge||v.domChantier)h+='<div class="be-dom">'
+    +(v.domDecharge?'<span><i>Déchargement du matériel</i><b>'+esc(v.domDecharge)+'</b></span>':'')
+    +(v.domChantier?'<span><i>Chantier et transbordement</i><b>'+esc(v.domChantier)+'</b></span>':'')+'</div>';
+  const res=Array.isArray(v.resume)?v.resume:[];
+  if(!res.length)h+='<p class="be-rien">✓ Aucune contrainte relevée sur cette visite.</p>';
+  res.forEach(x=>{
+    const ph=photos.filter(p=>p.rub===x.id).map(p=>p.id);ph.forEach(i=>{vus[i]=1});
+    h+='<div class="be-rub"><div class="be-rub-t">'+(x.num?'<i>'+esc(x.num)+'</i>':'')+'<span>'+esc(x.rubrique)+'</span></div>'
+      +((x.points||[]).length?'<ul class="be-pts">'+x.points.map(p=>'<li>'+esc(p)+'</li>').join('')+'</ul>':'')
+      +(x.vigilance?'<div class="be-vig"><b>Points de vigilance · moyens de prévention</b>'+beTexte(x.vigilance)+'</div>':'')
+      +beVignettes(ph,tous)+'</div>';
+  });
+  if(v.synthese)h+='<div class="be-syn"><b>Contraintes majeures et moyens de prévention à prévoir</b>'+beTexte(v.synthese)+'</div>';
+  const reste=tous.filter(i=>!vus[i]);
+  if(reste.length)h+='<div class="be-rub"><div class="be-rub-t"><span>'+(Object.keys(vus).length?'Autres photos':'Photos de la visite')+'</span></div>'+beVignettes(reste,tous)+'</div>';
+  const lien=beLienVisite(v.id);
+  h+='<div class="be-pied no-print">'+(lien?'<a class="btn btn-ghost btn-sm" href="'+esc(lien)+'" target="_blank" rel="noopener">📄 Ouvrir dans l’appli · PDF</a>':'<span class="small muted">Le PDF de la visite se sort depuis l’appli « Visite terrain BE ».</span>')+'</div>';
+  return h;
+}
+function beLigneHtml(v){
+  const nt=beNumTitre(v.chantier), n=Number(v.nb)||0, np=(v.photos||[]).length, ouvert=beOuvert.has(v.id);
+  return '<div class="be-r'+(ouvert?' open':'')+(v.realisable==='non'?' non':'')+'" id="be-'+esc(v.id)+'">'
+    +'<button type="button" class="be-h" onclick="beBasculer(\''+esc(v.id)+'\')" aria-expanded="'+(ouvert?'true':'false')+'">'
+      +'<span class="be-chev" aria-hidden="true">▸</span>'
+      +'<span class="be-ch">'+(nt.num?'<span class="rx-num">'+esc(nt.num)+'</span>':'')+'<b>'+esc(nt.titre||'Chantier sans nom')+'</b>'
+        +'<span class="be-meta">'+esc(frDate(v.date))+(v.responsable?' · '+esc(v.responsable):'')+'</span></span>'
+      +'<span class="be-tags">'+beDecision(v)
+        +'<span class="be-nb'+(n?'':' zero')+'">'+(n?n+' contrainte'+(n>1?'s':''):'aucune contrainte')+'</span>'
+        +(np?'<span class="be-ph">📷 '+np+'</span>':'')+'</span>'
+    +'</button>'
+    +'<div class="be-d">'+(ouvert?beDetailHtml(v):'')+'</div></div>';
+}
+function renderBe(){
+  const box=document.getElementById('v-be');if(!box)return;
+  const tous=beListe().filter(v=>!agenceChoisie||(v.agence||'')===agenceChoisie);
+  const l=tous.filter(v=>beCherche(v)&&(!beFiltre.non||v.realisable==='non'));
+  const nNon=tous.filter(v=>v.realisable==='non').length, nC=tous.reduce((s,v)=>s+(Number(v.nb)||0),0);
+  const infos=beInfos(), lien=beLienAppli();
+  let h='<div class="arr-head"><div><h2>🧭 Visites terrain BE</h2>'
+    +'<p class="small muted" style="margin:2px 0 0">Les reconnaissances avant travaux du bureau d’études : contraintes du site, moyens de prévention à prévoir, décision. Clique sur un chantier pour déplier sa visite.</p></div>'
+    +'<div class="arr-kpis"><span class="ak"><b>'+tous.length+'</b> visite'+(tous.length>1?'s':'')+'</span>'
+    +'<span class="ak '+(nNon?'bad':'ok')+'"><b>'+nNon+'</b> non réalisable'+(nNon>1?'s':'')+' en l’état</span>'
+    +'<span class="ak"><b>'+nC+'</b> contrainte'+(nC>1?'s':'')+' relevée'+(nC>1?'s':'')+'</span></div></div>';
+  h+='<div class="row no-print arr-bar">'
+    +(lien?'<a class="btn btn-primary btn-sm" href="'+esc(lien)+'" target="_blank" rel="noopener">＋ Nouvelle visite</a>':'')
+    +'<input type="text" id="be-q" class="fsel rx-q" placeholder="🔎 Chercher (chantier, responsable, contrainte…)" value="'+esc(beFiltre.q)+'" oninput="setBeFiltre(\'q\',this.value)">'
+    +'<button class="btn btn-ghost btn-sm'+(beFiltre.non?' on':'')+'" onclick="setBeFiltre(\'non\',!beFiltre.non)">'+(beFiltre.non?'☑':'☐')+' Non réalisables seulement</button>'
+    +'<button class="btn btn-ghost btn-sm" id="be-maj" onclick="beActualiser(true)"'+(beEtat.enCours?' disabled':'')+'>'+(beEtat.enCours?'⏳ Mise à jour…':'↻ Actualiser')+'</button>'
+    +'</div>';
+  /* ce qui manque pour que la page vive — dit à l'ÉDITEUR seulement, en clair */
+  if(estEditeur()){
+    let av='';
+    if(beEtat.erreur==='serveur')av='Le serveur de l’intranet ne sert pas encore les visites : il doit passer en <b>V33</b> (Déployer ▸ Gérer les déploiements ▸ ✏️ ▸ Nouvelle version).';
+    else if(infos&&infos.branche===false)av='Classeur des visites pas encore branché : ajoute la propriété <b>VISITE_SHEET_ID</b> au projet de l’intranet (son identifiant est affiché par <code>initialiser()</code> du projet « Visite terrain BE »).';
+    else if(infos&&infos.verrouAbsent)av='Le mot de passe de consultation n’est pas posé (propriété <b>INTRANET_LECTURE</b>) : tant qu’il manque, les visites ne sont servies à personne.';
+    else if(infos&&infos.erreur)av='Classeur des visites illisible : '+esc(infos.erreur);
+    if(av)h+='<div class="be-avis no-print">🛠 '+av+'</div>';
+  }
+  const groupes=AGENCES_ORDRE.filter(g=>!agenceChoisie||g.code===agenceChoisie);
+  let rien=true;
+  groupes.forEach(g=>{
+    const lg=l.filter(v=>(AGENCES_COUL[v.agence]?v.agence:'')===g.code);
+    if(!lg.length&&(g.code===''||agenceChoisie||beFiltre.q||beFiltre.non))return;
+    if(!lg.length){h+='<div class="agb ag-'+(g.code||'X')+'"><div class="agb-h"><span class="agb-nom">'+esc(g.lib)+'</span><span class="agb-n muted">pas encore de visite</span></div></div>';return}
+    rien=false;
+    h+='<div class="agb ag-'+(g.code||'X')+'"><div class="agb-h"><span class="agb-nom">'+esc(g.lib)+'</span><span class="agb-n">'+lg.length+' visite'+(lg.length>1?'s':'')+'</span></div>'
+      +'<div class="be-l">'+lg.map(beLigneHtml).join('')+'</div></div>';
+  });
+  if(rien&&!tous.length)h+='<div class="secempty">Aucune visite terrain'+(agenceChoisie?' pour cette agence':'')+' pour l’instant.'+(lien?' « ＋ Nouvelle visite » ouvre l’appli du bureau d’études.':'')+'</div>';
+  else if(rien)h+='<div class="secempty">Aucune visite ne correspond.</div>';
+  box.innerHTML=h;
+  beChargerVignettes();
+}
+/* Déplier / replier UNE ligne sans redessiner la page (les photos déjà chargées restent). */
+function beBasculer(id){
+  const el=document.getElementById('be-'+id);if(!el)return;
+  const ouvrir=!beOuvert.has(id);
+  if(ouvrir)beOuvert.add(id);else beOuvert.delete(id);
+  el.classList.toggle('open',ouvrir);
+  const b=el.querySelector('.be-h');if(b)b.setAttribute('aria-expanded',ouvrir?'true':'false');
+  const d=el.querySelector('.be-d');
+  if(ouvrir&&d&&!d.innerHTML){const v=beListe().find(x=>x.id===id);if(v)d.innerHTML=beDetailHtml(v)}
+  if(ouvrir)beChargerVignettes();
+}
+/* Les vignettes ne sont demandées que pour les lignes DÉPLIÉES : une page de 80 visites
+   repliées ne demande aucune image. Même circuit que les RETEX (lots, cache du navigateur). */
+function beChargerVignettes(){
+  if(typeof retexImg!=='function')return;
+  document.querySelectorAll('#v-be .be-r.open [data-bph]:not([data-ok])').forEach(function charge(el){
+    el.dataset.ok='1';el.classList.remove('ko');el.removeAttribute('title');
+    retexImg(el.dataset.bph,'petit').then(x=>{
+      if(x.src){el.style.backgroundImage='url("'+x.src+'")';el.classList.add('pret');el.title='Agrandir la photo'}
+      else{el.classList.add('ko');el.title='Photo indisponible : '+x.err+' — clique pour réessayer';
+        el.addEventListener('click',ev=>{if(!el.classList.contains('ko'))return;ev.stopImmediatePropagation();delete el.dataset.ok;charge(el)},{once:true,capture:true})}
+    });
+  });
+}
+function beZoom(liste,id){
+  const el=document.querySelector('#v-be [data-bph="'+id+'"]');if(el&&el.classList.contains('ko'))return;   // photo en échec : le clic réessaie, il n'agrandit pas
+  const ids=String(liste||'').split(',').filter(Boolean);
+  if(typeof retexLightbox==='function'&&ids.length)retexLightbox(ids,Math.max(0,ids.indexOf(id)));
 }
 
 /* ==================== DÉMARRAGE ==================== */
