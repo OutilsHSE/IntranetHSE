@@ -48,8 +48,8 @@ function qhpJouerVideo(el){const u=el.dataset.u;const w=document.createElement('
    (onglet QHP_THEMES) qui porte l'identifiant du flash (colonne banque). */
 let qhpOnglet=(function(){try{return localStorage.getItem('ihse_qhp_onglet')||'themes'}catch(e){return 'themes'}})();
 let qhpFlashOuvert=null;
-let flFiltre={q:'',sec:'',type:'',an:'',mois:''}, flIA={q:'',ids:[],pq:{},enCours:false,err:''};
-function flReset(){flFiltre={q:'',sec:'',type:'',an:'',mois:''};flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''}}
+let flFiltre={q:'',sec:'',type:'',an:'',m:'',mois:''}, flIA={q:'',ids:[],pq:{},enCours:false,err:''};
+function flReset(){flFiltre={q:'',sec:'',type:'',an:'',m:'',mois:''};flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''}}
 /* V3.9 : cliquer « Tous les flashs » repart de la liste complète (plus de question ni de recherche IA qui traîne) */
 function setQhpOnglet(o){qhpOnglet=o==='flashs'?'flashs':'themes';try{localStorage.setItem('ihse_qhp_onglet',qhpOnglet)}catch(e){}qhpFlashOuvert=null;qhpThemeOuvert=null;flReset();renderQhp()}
 function qhpVoirFlashs(){qhpOnglet='flashs';qhpFlashOuvert=null;qhpThemeOuvert=null;go('v-qhp')}
@@ -80,7 +80,7 @@ function renderQhp(){
   let h='<div class="arr-head"><div><h2>🎓 Espace QHP</h2><p class="small muted" style="margin:2px 0 0">Les quarts d’heure prévention : le flash, la vidéo, le quiz — et l’émargement à portée de main.</p></div>'
     +'<div class="arr-kpis">'+boutonEmargement('btn-sm')+(estEditeur()&&qhpOnglet==='themes'?'<button class="btn btn-ghost btn-sm no-print" onclick="qhpEditer()" title="Un thème animé : vidéo + quiz sans flash de la banque">＋ Thème animé</button>':'')
     +(estEditeur()&&qhpOnglet==='flashs'?'<button class="btn btn-ghost btn-sm no-print" onclick="flLotOuvrir()" title="Déposer les PDF des flashs : leur première page devient l’image de chaque flash">📤 Images des flashs</button>':'')+'</div></div>';
-  /* V3.9.4 : « 🔴 Derniers flashs » (les parutions des 3 derniers mois) remplace « Thèmes du mois » */
+  /* V3.9.4 : « 🔴 Derniers flashs » remplace « Thèmes du mois » ; V3.17 : les flashs du mois en cours seulement */
   h+='<div class="seg qhp-ong no-print"><button class="rouge '+(qhpOnglet==='themes'?'on':'')+'" onclick="setQhpOnglet(\'themes\')">🔴 Derniers flashs</button><button class="'+(qhpOnglet==='flashs'?'on':'')+'" onclick="setQhpOnglet(\'flashs\')">📚 Tous les flashs'+(nbFl?' <span class="apill">'+nbFl+'</span>':'')+'</button></div>';
   if(qhpOnglet==='flashs'){
     if(typeof banque!=='undefined'&&!banque.charge&&!banque.enCours&&typeof chargerBanque==='function')setTimeout(()=>chargerBanque(false),0);
@@ -89,16 +89,17 @@ function renderQhp(){
       +'<div class="bqbar no-print" id="fl-filtres"></div><div id="fl-liste"></div>';
     box.innerHTML=h;renderFlashListe();return;
   }
-  /* les derniers flashs parus : ceux des 3 derniers mois, et au moins les 8 plus récents */
   if(typeof banque!=='undefined'&&!banque.charge&&!banque.enCours&&typeof chargerBanque==='function')setTimeout(()=>chargerBanque(false),0);
   const tousFl=banqueFlashs().slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  /* V3.9.5 : les deux derniers MOIS DE PARUTION (pas de remplissage avec de vieux flashs) */
-  const moisParus=[...new Set(tousFl.map(d=>String(d.date||'').slice(0,7)).filter(m=>/^\d{4}-\d{2}$/.test(m)))].slice(0,2);
-  const derniers=tousFl.filter(d=>moisParus.includes(String(d.date||'').slice(0,7)));
+  /* V3.17 : UN SEUL mois — celui en cours (voir moisFlashsCourant). Les mois d'avant se lisent dans « Tous les flashs ». */
+  const moisAff=moisFlashsCourant(), moisParus=moisAff?[moisAff]:[];
+  const derniers=tousFl.filter(d=>String(d.date||'').slice(0,7)===moisAff).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(a.titre||'').localeCompare(String(b.titre||''),'fr'));
   const typeLib=d=>(typeof BQ_TYPES!=='undefined'&&BQ_TYPES[d.type])?BQ_TYPES[d.type].lib:'Non typé';
   if(!tousFl.length)h+='<div class="secempty">'+((typeof banque!=='undefined'&&banque.enCours)?'⏳ Chargement des flashs…':'Aucun flash dans la banque pour l’instant.')+'</div>';
   else{
-    h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' — '+moisParus.map(m=>esc(qhpMoisLib(m))).join(' et ')+' — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
+    h+='<p class="hint">'+derniers.length+' flash'+(derniers.length>1?'s':'')+' — '+moisParus.map(m=>esc(qhpMoisLib(m))).join(' et ')
+      +(moisAff&&moisAff!==moisCalendaire()?' <span class="muted">(pas encore de flash daté de '+esc(qhpMoisLib(moisCalendaire()).toLowerCase())+')</span>':'')
+      +' — <a href="#" onclick="setQhpOnglet(\'flashs\');return false">voir les '+tousFl.length+'</a></p>';
     h+='<div class="fl-grid" id="fl-derniers">'+derniers.map(d=>{const t=enrichissement(d),c=flCouleur(d);
       return '<div class="fl-card" style="--c:'+esc(c)+'" data-id="'+esc(String(d.id))+'" onclick="qhpOuvrirFlash(this.dataset.id)">'
         +(t&&t.image?flVigHtml(t.image):'<div class="fl-vig vide"><span>⚡</span></div>')
@@ -117,10 +118,21 @@ function renderQhp(){
 function flSaisie(v){flFiltre.q=v;flFiltre.mois='';renderFlashListe()}
 /* V3.5.1 — « ⚡ Flashs du mois » : les flashs du mois en cours ou, s'il n'y en a pas
    encore, ceux du dernier mois paru. Un seul flash : il s'ouvre directement. */
-function dernierMoisFlashs(){
-  const ms=banqueFlashs().map(d=>String(d.date||'').slice(0,7)).filter(m=>/^\d{4}-\d{2}$/.test(m)).sort();
-  return ms.length?ms[ms.length-1]:'';
+/* V3.17 — LE MOIS DES « DERNIERS FLASHS » (règle du service HSE : derniers flashs = ceux du mois en cours).
+   · le mois en cours, dès qu'il a au moins un flash ;
+   · sinon le prochain mois déjà publié (les flashs de décembre déposés fin novembre) ;
+   · sinon le dernier mois paru — l'onglet n'est jamais vide.
+   Une seule règle pour l'onglet « Derniers flashs » et pour le bouton « ⚡ Flashs du mois ». */
+function moisCalendaire(){const n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')}
+function moisFlashsCourant(){
+  const ms=[...new Set(banqueFlashs().map(d=>String(d.date||'').slice(0,7)).filter(m=>/^\d{4}-\d{2}$/.test(m)))].sort();
+  if(!ms.length)return '';
+  const ici=moisCalendaire();
+  if(ms.includes(ici))return ici;
+  const aVenir=ms.filter(m=>m>ici);
+  return aVenir.length?aVenir[0]:ms[ms.length-1];
 }
+function dernierMoisFlashs(){return moisFlashsCourant()}
 function flashsDuMois(){
   qhpOnglet='flashs';try{localStorage.setItem('ihse_qhp_onglet','flashs')}catch(e){}
   qhpThemeOuvert=null;qhpFlashOuvert=null;flIA={q:'',ids:[],pq:{},mots:[],enCours:false,err:''};
@@ -150,7 +162,15 @@ function renderFlashListe(){
   const uniq=f=>[...new Set(tous.map(f).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'fr'));
   const sel=(k,lib,vals)=>'<select onchange="flSetFiltre(\''+k+'\',this.value)"><option value="">'+lib+'</option>'+vals.map(v=>'<option'+(flFiltre[k]===v?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select>';
   const fb=document.getElementById('fl-filtres');
-  if(fb)fb.innerHTML=sel('sec','Tous les secteurs',uniq(d=>d.secteur||''))+sel('type','Tous les types',uniq(typeLib))+sel('an','Toutes les années',uniq(d=>String(d.date||'').slice(0,4)).reverse())
+  /* V3.17 — MENU « MOIS » : Janvier → Décembre, seulement les mois qui ont des flashs (dans l'année choisie
+     s'il y en a une). Seul, il montre ce mois-là toutes années confondues (les « fortes chaleurs » de chaque
+     juillet) ; avec une année, le mois exact. Un mois qui n'existe pas dans l'année choisie se désélectionne. */
+  const moisDe=d=>{const m=String(d.date||'').match(/^\d{4}-(\d{2})/);return m?m[1]:''};
+  const moisDispo=[...new Set(tous.filter(d=>!flFiltre.an||String(d.date||'').slice(0,4)===flFiltre.an).map(moisDe).filter(Boolean))].sort();
+  if(flFiltre.m&&!moisDispo.includes(flFiltre.m))flFiltre.m='';
+  const moisNom=m=>(typeof BUL_MOIS_L!=='undefined'?BUL_MOIS_L:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'])[Number(m)-1]||m;
+  const selMois='<select id="fl-mois" onchange="flSetFiltre(\'m\',this.value)" title="Choisir un mois"><option value="">Tous les mois</option>'+moisDispo.map(m=>'<option value="'+m+'"'+(flFiltre.m===m?' selected':'')+'>'+esc(moisNom(m))+'</option>').join('')+'</select>';
+  if(fb)fb.innerHTML=sel('sec','Tous les secteurs',uniq(d=>d.secteur||''))+sel('type','Tous les types',uniq(typeLib))+sel('an','Toutes les années',uniq(d=>String(d.date||'').slice(0,4)).reverse())+selMois
     +'<span class="bqsp"></span><button class="btn btn-ghost btn-sm" onclick="rafraichirBanque()" title="Relire la banque maintenant">🔄</button>';
   let h='';
   if(typeof banque!=='undefined'&&banque.erreur)h+='<div class="secempty" style="border-color:rgba(194,43,34,.4);color:#C22B22">⚠️ '+esc(banque.erreur)+'</div>';
@@ -160,7 +180,7 @@ function renderFlashListe(){
   let l, elargi=false, partiel=false;
   const net=(typeof bqNet==='function'?bqNet:x=>String(x).toLowerCase());
   const foinDe=d=>net([d.titre,d.fichier,d.mots,typeLib(d),d.secteur].join(' '));
-  const cadre=tous.filter(d=>!(flFiltre.sec&&(d.secteur||'')!==flFiltre.sec)&&!(flFiltre.type&&typeLib(d)!==flFiltre.type)&&!(flFiltre.an&&String(d.date||'').slice(0,4)!==flFiltre.an));
+  const cadre=tous.filter(d=>!(flFiltre.sec&&(d.secteur||'')!==flFiltre.sec)&&!(flFiltre.type&&typeLib(d)!==flFiltre.type)&&!(flFiltre.an&&String(d.date||'').slice(0,4)!==flFiltre.an)&&!(flFiltre.m&&moisDe(d)!==flFiltre.m));
   const iaPrete=iaActive&&!flIA.err&&!flIA.enCours;
   if(iaPrete)l=iaClasser(cadre,flIA.mots,foinDe);
   if(iaActive){

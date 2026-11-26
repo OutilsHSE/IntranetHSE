@@ -180,6 +180,7 @@ function renderBulletin(){
     +'<div class="bul-head-d"><span class="seg bul-per no-print"><button class="'+(bulPeriode==='mois'?'on':'')+'" onclick="bulSetPeriode(\'mois\')">Mois</button><button class="'+(bulPeriode==='annee'?'on':'')+'" onclick="bulSetPeriode(\'annee\')">Année</button></span>'
     +'<span class="bul-switch seg no-print"><button data-v="bulletin" onclick="bulSetVue(\'bulletin\')">📰 Bulletin</button><button data-v="dash" onclick="bulSetVue(\'dash\')">📊 Tableau de bord</button></span>'
     +'<button class="bul-nav no-print" style="width:auto;padding:0 10px;font-size:14px" onclick="bulImprimer()" title="Imprimer / enregistrer en PDF ce bulletin">🖨 PDF</button>'
+    +(estEditeur()?'<button class="bul-nav no-print" id="btn-bilan" style="width:auto;padding:0 10px;font-size:14px" onclick="bilanOuvrir()" title="Bilan mensuel Vigiminutes + QHP, toutes agences — image à coller dans un mail, ou PDF (service HSE)">📄 Bilan Vigi + QHP</button>':'')   // V3.21
     +'<div class="bul-ag'+(agenceChoisie?' ag-'+agenceChoisie:'')+'">'+esc(agLib)+'</div></div></div>';
   /* V3.3.2 : UN seul bouton de déclaration, discret, dans le bandeau d'actions (le type choisi dans la fenêtre dirige vers les remontées ou vers les accidents) */
   h+='<div class="bul-decl no-print"><button class="btn btn-decl" onclick="ouvrirDeclarer()"><svg class="ico-decl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.2 1.3 21h21.4L12 2.2z" fill="#fff"/><path d="M12 8.6v6.2" stroke="#D7261E" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="18" r="1.5" fill="#D7261E"/></svg>Déclarer un événement</button><span class="muted">situation dangereuse, presqu’accident, bonne pratique, point d’amélioration… ou accident</span></div>';
@@ -418,6 +419,241 @@ function bulEditerFaits(mois){
     setInterval(()=>{try{if(typeof syncOuLecture==='function')syncOuLecture(false)}catch(e){}},600000);
   });
 })();
+/* ==================== V3.21 — BILAN MENSUEL VIGIMINUTES + QHP (IMAGE ou PDF) ====================
+   Demande du service HSE (24/11/2026) : « un petit bilan des Vigi + QHP sur le même doc, mensuellement. Un truc
+   simple, lisible. » Toujours toutes agences · service HSE seulement (appareil éditeur).
+   Retours du même jour : pas de courbe de l'année ni de détail par chantier ; dans le cartouche, les chiffres
+   des deux écrans déjà affichés par l'intranet (QHP réalisés ce mois, participation n/N, QHP sur 12 mois · Vigiminutes
+   reçues sur attendues, %, remontées, écart) ; le CLASSEMENT COMPLET des encadrants chantiers ; plus AÉRÉ ; et
+   surtout il se colle COMME UNE IMAGE dans le mail récapitulatif (« ça aura plus d'impact »).
+   Le bilan est donc DESSINÉ dans un canevas : ce qu'on voit dans l'aperçu est exactement l'image qu'on colle.
+   Le bouton « 📄 Bilan Vigi + QHP » de l'accueil ouvre l'aperçu (mois du bulletin, flèches pour en changer) :
+     · « 📋 Copier l'image »  → presse-papiers, à coller dans le mail (Ctrl + V) ;
+     · « ⬇ Image »           → fichier PNG ;
+     · « 🖨 PDF »             → impression A4 (« Enregistrer au format PDF »).
+   V3.21 (26/11/2026, décision du service HSE) : la ligne rouge « Sans QHP animé depuis janvier » est retirée — l'image
+   part dans un mail diffusé, on n'y cite que ceux qui figurent au classement.
+   Tout sort des données déjà reçues par la page : aucun appel au serveur, rien d'écrit nulle part. */
+const bilanEtat={mois:'',canevas:null,tour:0};
+const BILAN_C={vigi:'#E8720C',qhp:'#7A4FC0',ok:'#158A52',mid:'#C27A08',ko:'#C22B22',marine:'#003A6E',txt:'#14283e',gris:'#4c6379',clair:'#7b8fa3'};
+function bilanCss(){
+  if(document.getElementById('bilan-css'))return;
+  const st=document.createElement('style');st.id='bilan-css';
+  st.textContent=`
+#bilan-vue{position:fixed;inset:0;z-index:9000;background:rgba(15,39,66,.72);overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0 40px}
+#bilan-vue .bvq-barre{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;background:#0f2742;color:#fff;padding:10px 12px;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+#bilan-vue .bvq-barre b{font:700 17px "Barlow Condensed",Arial,sans-serif;letter-spacing:.6px;min-width:150px;text-align:center}
+#bilan-vue .bvq-barre button{font:600 14px Barlow,Arial,sans-serif;border-radius:10px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;padding:8px 13px;cursor:pointer}
+#bilan-vue .bvq-barre button.pri{background:#C25A08;border-color:#C25A08}
+#bilan-vue .bvq-barre button:disabled{opacity:.4;cursor:default}
+#bilan-vue .bvq-etat{flex:1 1 100%;text-align:center;font-size:12.5px;color:#cfe0f1}
+#bilan-vue .bvq-img{display:block;width:800px;max-width:calc(100vw - 16px);height:auto;margin:16px auto;border-radius:6px;box-shadow:0 6px 30px rgba(0,0,0,.35);background:#fff}
+@media print{
+  body.impression-bilan>*:not(#bilan-vue){display:none!important}
+  body.impression-bilan{background:#fff!important;padding:0!important;margin:0}body.impression-bilan::before{display:none}
+  body.impression-bilan #bilan-vue{position:static;background:none;overflow:visible;padding:0}
+  body.impression-bilan #bilan-vue .bvq-barre{display:none!important}
+  body.impression-bilan #bilan-vue .bvq-img{width:190mm;max-width:none;max-height:270mm;object-fit:contain;object-position:top;margin:0;box-shadow:none;border-radius:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}`;
+  document.head.appendChild(st);
+}
+function bilanMoisVoisin(k,d){const x=new Date(Number(k.slice(0,4)),Number(k.slice(5,7))-1+d,1);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')}
+function bilanPc(a,b){a=Number(a)||0;b=Number(b)||0;return b>0?Math.round(a/b*100):null}
+/* Les chiffres d'UN mois, pour le global ('') ou une agence — toujours lus dans le global reçu du serveur,
+   jamais à travers le sélecteur d'agence du bandeau : le bilan est « toutes agences ». */
+function bilanChiffres(k,ag){
+  const g=repGlobal()||{}, q=qhpData();
+  const rows=(ag?(g.parAgence&&g.parAgence[ag]&&g.parAgence[ag].mois):g.mois)||[], r=rows.find(x=>x.k===k)||{};
+  const vAtt=Number(r.vigiAtt)||0, vRecu=Number(r.vigiRecu)||0;
+  const mq=q&&Array.isArray(q.mois)?q.mois.find(x=>x.k===k):null;
+  let eff=0,vus=0,nb=null;
+  if(mq){if(ag){const pa=mq.parAgence&&mq.parAgence[ag];if(pa){eff=Number(pa.eff)||0;vus=Number(pa.vus)||0}}else{eff=Number(mq.eff)||0;vus=Number(mq.vus)||0;nb=mq.nb}}
+  if(!eff&&Number(r.qhpEff)>0){eff=Number(r.qhpEff);vus=Number(r.qhpPart)||0}            // repli : les chiffres du reporting
+  return {vAtt,vRecu,vPc:bilanPc(vRecu,vAtt),eff,vus,qPc:bilanPc(vus,eff),nb};
+}
+function bilanDonnees(k){
+  const q=qhpData(), g=repGlobal()||{}, an=k.slice(0,4), kp=bilanMoisVoisin(k,-1);
+  const objV=Number(kpiVal('vigi.objPart'))||80, objQ=(q&&q.objPart)||Number(kpiVal('qhp.objPart'))||80;
+  const ags=AGENCES_ORDRE.filter(a=>a.code);
+  const ligne=ag=>{const n=bilanChiffres(k,ag),p=bilanChiffres(kp,ag);
+    return Object.assign(n,{dV:(n.vPc!==null&&p.vPc!==null)?n.vPc-p.vPc:null,dQ:(n.qPc!==null&&p.qPc!==null)?n.qPc-p.qPc:null})};
+  /* remontées du mois (toutes agences) et QHP réalisés sur les 12 mois qui finissent au mois du bilan */
+  const pm=(g.remontees&&g.remontees.parMois)||[], rem=pm.filter(x=>x.k===k).reduce((t,x)=>t+(Number(x.n)||0),0);
+  const k0=bilanMoisVoisin(k,-11), fen=(q&&Array.isArray(q.mois))?q.mois.filter(m=>m.k>=k0&&m.k<=k):[];
+  const q12={n:fen.reduce((t,m)=>t+(Number(m.nb)||0),0),mois:fen.length};
+  /* CLASSEMENT COMPLET des encadrants chantiers : par QHP animés dans le mois, puis par cumul depuis janvier ;
+     ex æquo = même rang. Ceux qui n'ont rien animé depuis janvier n'y figurent pas (et ne sont cités nulle part). */
+  const idx=q&&Array.isArray(q.mois)?q.mois.findIndex(m=>m.k===k):-1, conds=(q&&Array.isArray(q.conducteurs))?q.conducteurs:[];
+  const tous=conds.map(c=>({nom:String(c.nom||''),agence:c.agence||'',n:(idx>=0&&c.mois?Number(c.mois[idx])||0:0),
+    an:(c.mois||[]).reduce((t,v,i)=>t+((q.mois[i]&&String(q.mois[i].k).slice(0,4)===an&&q.mois[i].k<=k)?(Number(v)||0):0),0)}));
+  const classes=tous.filter(c=>c.n>0||c.an>0).sort((x,y)=>y.n-x.n||y.an-x.an||x.nom.localeCompare(y.nom,'fr'));
+  classes.forEach((c,i)=>{const p=classes[i-1];c.r=(i>0&&p.n===c.n&&p.an===c.an)?p.r:i});
+  return {k,kp,an,objV,objQ,total:ligne(''),agences:ags.map(a=>Object.assign({code:a.code,lib:a.lib},ligne(a.code))),rem,q12,classes,connu:idx>=0};
+}
+function bilanNiveau(pc,obj){return pc===null?'nd':(pc>=obj?'ok':(pc>=obj*0.8?'mid':'ko'))}
+function bilanEcart(d,kp){if(d===null||d===undefined)return '';const m=BUL_MOIS_L[Number(kp.slice(5,7))-1].toLowerCase();
+  return d===0?'= stable par rapport à '+m:(d>0?'▲ +':'▼ −')+Math.abs(d)+' pt'+(Math.abs(d)>1?'s':'')+' par rapport à '+m}
+/* Ce que le dessin écrit, cartouche par cartouche — séparé du dessin pour pouvoir le vérifier. */
+function bilanContenu(k){
+  const d=bilanDonnees(k), t=d.total, pl=n=>Number(n)>1?'s':'', nomM=m=>BUL_MOIS_L[Number(m.slice(5,7))-1].toLowerCase();
+  const badge=(pc,obj)=>{const nv=bilanNiveau(pc,obj);return {nv,t:nv==='nd'?'pas de donnée':nv==='ok'?'Objectif '+obj+' % atteint':'Sous l’objectif de '+obj+' %'}};
+  return {d,mois:bulLib(k),
+    cartes:[
+      {titre:'VIGIMINUTES',c:BILAN_C.vigi,badge:badge(t.vPc,d.objV),ecart:bilanEcart(t.dV,d.kp),obj:d.objV,
+       tuiles:[{v:(t.vAtt||t.vRecu)?String(t.vRecu):'—',l:'Vigiminute'+pl(t.vRecu)+' reçue'+pl(t.vRecu)+(t.vAtt?' sur '+t.vAtt+' attendue'+pl(t.vAtt):'')},
+               {v:t.vPc===null?'—':t.vPc+' %',l:'de réalisation — objectif '+d.objV+' %',fort:true},
+               {v:String(d.rem),l:'remontée'+pl(d.rem)+' en '+nomM(k)}],
+       agences:d.agences.map(a=>({code:a.code,pc:a.vPc,detail:a.vAtt?a.vRecu+' / '+a.vAtt:'—'}))},
+      {titre:'QUARTS D’HEURE PRÉVENTION',c:BILAN_C.qhp,badge:badge(t.qPc,d.objQ),ecart:bilanEcart(t.dQ,d.kp),obj:d.objQ,
+       tuiles:[{v:(t.nb===null||t.nb===undefined)?'—':String(t.nb),l:'QHP réalisé'+pl(t.nb)+' ce mois'},
+               {v:t.qPc===null?'—':t.qPc+' %',l:'Participation ('+(t.eff?t.vus+'/'+t.eff:'—')+') — objectif '+d.objQ+' %',fort:true},
+               {v:d.q12.mois?String(d.q12.n):'—',l:'QHP sur '+(d.q12.mois&&d.q12.mois<12?d.q12.mois:12)+' mois'}],
+       agences:d.agences.map(a=>({code:a.code,pc:a.qPc,detail:a.eff?a.vus+' / '+a.eff:'—'}))}],
+    classementSous:'QHP animés en '+nomM(k)+' · cumul depuis janvier '+d.an,
+    classementVide:!d.connu?'Pas de donnée QHP pour ce mois.':(!d.classes.length?'Aucun QHP animé depuis janvier.':'')};
+}
+/* ---------- le dessin ----------
+   Largeur logique 800 px, dessinée en double définition (1 600 px réels) : net dans un mail, même agrandi. */
+async function bilanDessiner(k){
+  const W=800, E=2, M=40, CW=W-2*M, FC='"Barlow Condensed",Arial,sans-serif', FT='Barlow,Arial,sans-serif';
+  try{if(document.fonts&&document.fonts.load)await Promise.race([Promise.all(['700 40px "Barlow Condensed"','600 14px Barlow','400 14px Barlow','700 14px Barlow'].map(f=>document.fonts.load(f))),new Promise(r=>setTimeout(r,1500))])}catch(e){}
+  const logo=await new Promise(ok=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ok(null);i.src=window.__LOGO__||'img/logo_cdes.png'});
+  const B=bilanContenu(k), d=B.d;
+  const mes=document.createElement('canvas').getContext('2d');
+  const larg=(t,f)=>{mes.font=f;return mes.measureText(t).width};
+  const couper=(t,f,max)=>{if(larg(t,f)<=max)return t;let s=t;while(s.length>1&&larg(s+'…',f)>max)s=s.slice(0,-1);return s+'…'};
+  /* hauteurs */
+  const H_TETE=92, H_CARTE=224, ESP=26, H_LIGNE=40, nL=Math.ceil(d.classes.length/2);
+  const hClass=B.classementVide?34:nL*H_LIGNE;
+  const H=M+H_TETE+ESP+H_CARTE+ESP+H_CARTE+ESP+12+34+hClass+34+30+M-12;
+  const cv=document.createElement('canvas');cv.width=W*E;cv.height=Math.round(H*E);
+  const x=cv.getContext('2d');x.scale(E,E);x.textBaseline='alphabetic';
+  const rr=(X,Y,w,h,r)=>{x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,Y+h,r);x.arcTo(X+w,Y+h,X,Y+h,r);x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath()};
+  const txt=(t,X,Y,f,c,al)=>{x.font=f;x.fillStyle=c;x.textAlign=al||'left';x.fillText(t,X,Y)};
+  const esp=(t,X,Y,f,c,ls,al)=>{x.font=f;x.fillStyle=c;try{x.letterSpacing=ls+'px'}catch(e){}x.textAlign=al||'left';x.fillText(t,X,Y);try{x.letterSpacing='0px'}catch(e){}};
+  x.fillStyle='#fff';x.fillRect(0,0,W,H);
+  /* --- en-tête --- */
+  let y=M;
+  let lx=M;
+  if(logo){const lh=54, lw=lh*logo.naturalWidth/logo.naturalHeight;x.drawImage(logo,M,y+2,lw,lh);lx=M+lw+18}
+  esp('SERVICE HSE · BILAN MENSUEL',lx,y+22,'700 12px '+FT,'#C25A08',1.8);
+  esp('VIGIMINUTES & QHP',lx,y+54,'700 31px '+FC,BILAN_C.marine,1);
+  esp(B.mois.toUpperCase(),W-M,y+34,'700 25px '+FC,BILAN_C.txt,0.6,'right');
+  txt('Toutes agences',W-M,y+54,'400 13px '+FT,'#5c7188','right');
+  x.fillStyle=BILAN_C.marine;x.fillRect(M,y+74,CW,3);x.fillStyle='#C25A08';x.fillRect(M,y+74,84,3);
+  y+=H_TETE+ESP;
+  /* --- les deux cartouches --- */
+  const NV={ok:['#e7f5ee','#0f6b3f'],mid:['#fff3e0','#8a5200'],ko:['#fdecea','#a3211a'],nd:['#f1f4f7','#5c7188']};
+  B.cartes.forEach(c=>{
+    x.save();rr(M,y,CW,H_CARTE,14);x.clip();x.fillStyle='#fff';x.fillRect(M,y,CW,H_CARTE);x.fillStyle=c.c;x.fillRect(M,y,CW,5);x.restore();
+    rr(M+.5,y+.5,CW-1,H_CARTE-1,14);x.strokeStyle='#d9e3ee';x.lineWidth=1;x.stroke();
+    const px=M+22, pw=CW-44;
+    esp(c.titre,px,y+40,'700 20px '+FC,c.c,1.4);
+    const tw=larg(c.titre,'700 20px '+FC)+c.titre.length*1.4, bf='700 12px '+FT, bw=larg(c.badge.t,bf)+24, bx=px+tw+14;
+    rr(bx,y+22,bw,24,12);x.fillStyle=NV[c.badge.nv][0];x.fill();txt(c.badge.t,bx+12,y+38.5,bf,NV[c.badge.nv][1]);
+    if(c.ecart)txt(c.ecart,M+CW-22,y+39,'400 13px '+FT,BILAN_C.gris,'right');
+    /* trois tuiles */
+    const gap=16, tW=(pw-2*gap)/3, tY=y+62, tH=96;
+    c.tuiles.forEach((t,i)=>{const tx=px+i*(tW+gap);
+      rr(tx,tY,tW,tH,12);x.fillStyle='#f3f6fb';x.fill();x.strokeStyle='#e1e8f1';x.stroke();
+      txt(t.v,tx+tW/2,tY+50,'700 44px '+FC,(t.fort&&c.badge.nv!=='nd')?BILAN_C[c.badge.nv]:BILAN_C.txt,'center');
+      txt(couper(t.l,'600 12.5px '+FT,tW-14),tx+tW/2,tY+76,'600 12.5px '+FT,BILAN_C.gris,'center')});
+    /* les trois agences */
+    const aY=y+190;
+    c.agences.forEach((a,i)=>{const ax=px+i*(tW+gap);
+      txt(a.code,ax,aY+4,'700 13px '+FT,AGENCES_COUL[a.code]||BILAN_C.txt);
+      const pcT=a.pc===null?'—':a.pc+' %', wP=44, wD=larg(a.detail,'400 12.5px '+FT), jx=ax+36, jw=tW-36-wP-wD-18;
+      rr(jx,aY-5,jw,9,4.5);x.fillStyle='#e8edf3';x.fill();
+      if(a.pc){x.save();rr(jx,aY-5,jw,9,4.5);x.clip();x.fillStyle=c.c;rr(jx,aY-5,Math.max(9,jw*Math.min(a.pc,100)/100),9,4.5);x.fill();x.restore()}
+      x.fillStyle='#1F6FB2';x.fillRect(jx+jw*Math.min(c.obj,100)/100-1,aY-8,2,15);
+      txt(a.detail,jx+jw+9,aY+4,'400 12.5px '+FT,BILAN_C.gris);
+      txt(pcT,ax+tW,aY+4,'700 13px '+FT,a.pc===null?BILAN_C.clair:BILAN_C[bilanNiveau(a.pc,c.obj)],'right')});
+    y+=H_CARTE+ESP});
+  /* --- le classement complet --- */
+  y+=12;
+  esp('CLASSEMENT DES ENCADRANTS CHANTIERS',M,y+18,'700 20px '+FC,BILAN_C.marine,1.1);
+  const wT=larg('CLASSEMENT DES ENCADRANTS CHANTIERS','700 20px '+FC)+35*1.1;
+  txt(couper(B.classementSous,'400 12.5px '+FT,CW-wT-14),M+wT+14,y+18,'400 12.5px '+FT,'#5c7188');
+  y+=34;
+  if(B.classementVide){txt(B.classementVide,M,y+20,'italic 400 13.5px '+FT,BILAN_C.clair);y+=34}
+  else{
+    const cg=28, cW=(CW-cg)/2, MED=[['#F2B705','#5c4300'],['#B8C2CC','#33414f'],['#D08A4E','#4a2a0c']];
+    const wAn=Math.max.apply(null,d.classes.map(c=>larg(c.an+' en '+d.an,'400 12px '+FT)));
+    d.classes.forEach((c,i)=>{const col=i<nL?0:1, li=col?i-nL:i, X=M+col*(cW+cg), Y=y+li*H_LIGNE;
+      x.fillStyle='#e6ecf2';x.fillRect(X,Y+H_LIGNE-1,cW,1);
+      const m=c.r<3?MED[c.r]:['#eef3f8','#5c7188'];
+      x.beginPath();x.arc(X+16,Y+H_LIGNE/2,12,0,Math.PI*2);x.fillStyle=m[0];x.fill();
+      txt(String(c.r+1),X+16,Y+H_LIGNE/2+4.5,'700 12.5px '+FT,m[1],'center');
+      const wA=wAn, wM=larg(String(c.n),'700 19px '+FC)+larg(' ce mois','400 12.5px '+FT);                 // colonne « x en AAAA » de largeur fixe : les « n ce mois » s'alignent
+      const dispo=cW-38-wA-wM-30-(c.agence?larg(c.agence,'700 10.5px '+FT)+8:0), fN=(c.n?'600':'400')+' 14px '+FT, nom=couper(c.nom,fN,dispo);
+      txt(nom,X+38,Y+H_LIGNE/2+5,fN,c.n?BILAN_C.txt:BILAN_C.gris);
+      if(c.agence)txt(c.agence,X+38+larg(nom,fN)+7,Y+H_LIGNE/2+4.5,'700 10.5px '+FT,AGENCES_COUL[c.agence]||'#5c7188');
+      const xr=X+cW-wA-16;
+      txt(' ce mois',xr,Y+H_LIGNE/2+5,'400 12.5px '+FT,BILAN_C.gris,'right');
+      txt(String(c.n),xr-larg(' ce mois','400 12.5px '+FT),Y+H_LIGNE/2+6,'700 19px '+FC,c.n?BILAN_C.qhp:'#b3bfcb','right');
+      txt(c.an+' en '+d.an,X+cW-2,Y+H_LIGNE/2+5,'400 12px '+FT,BILAN_C.clair,'right')});
+    y+=hClass}
+  /* --- pied --- */
+  y+=34;x.fillStyle='#d9e3ee';x.fillRect(M,y,CW,1);
+  txt('Service HSE — CDES · bilan Vigiminutes & QHP · '+B.mois,M,y+19,'400 11px '+FT,BILAN_C.clair);
+  txt('Édité le '+frDate(new Date().toISOString().slice(0,10))+' depuis l’intranet HSE',W-M,y+19,'400 11px '+FT,BILAN_C.clair,'right');
+  return cv;
+}
+function bilanNomFichier(){return 'Bilan_Vigiminutes_QHP_'+bilanEtat.mois}
+async function bilanRendu(){
+  const v=document.getElementById('bilan-vue');if(!v)return;
+  const k=bilanEtat.mois, max=bulMoisCourant(), tour=++bilanEtat.tour;
+  if(!v.querySelector('.bvq-barre'))v.innerHTML='<div class="bvq-barre no-print"></div><img class="bvq-img" alt="Bilan mensuel Vigiminutes et QHP">';
+  v.querySelector('.bvq-barre').innerHTML='<button onclick="bilanAller(-1)" title="Mois précédent">‹</button><b>'+esc(bulLib(k))+'</b>'
+    +'<button onclick="bilanAller(1)" '+(k>=max?'disabled':'')+' title="Mois suivant">›</button>'
+    +'<button class="pri" id="bvq-copier" onclick="bilanCopier()" title="Copie l’image : colle-la ensuite dans ton mail (Ctrl + V)">📋 Copier l’image</button>'
+    +'<button id="bvq-png" onclick="bilanTelecharger()" title="Enregistre l’image (PNG)">⬇ Image</button>'
+    +'<button id="bvq-pdf" onclick="bilanImprimer()" title="Imprimer / enregistrer en PDF (A4)">🖨 PDF</button><button onclick="bilanFermer()">✕ Fermer</button>'
+    +'<span class="bvq-etat" id="bvq-etat">« Copier l’image », puis Ctrl + V dans le mail.</span>';
+  let cv=null;
+  try{cv=await bilanDessiner(k)}catch(e){const s=document.getElementById('bvq-etat');if(s)s.textContent='Dessin impossible : '+String((e&&e.message)||e)}
+  if(tour!==bilanEtat.tour||!cv)return;                       // un autre mois a été demandé entre-temps
+  bilanEtat.canevas=cv;
+  const img=v.querySelector('.bvq-img');if(img)img.src=cv.toDataURL('image/png');
+}
+function bilanOuvrir(){
+  if(!estEditeur()){toast('Réservé au service HSE',true);return}
+  bilanCss();
+  let v=document.getElementById('bilan-vue');
+  if(!v){v=document.createElement('div');v.id='bilan-vue';document.body.appendChild(v)}
+  bilanEtat.mois=(typeof bulMois==='string'&&/^\d{4}-\d{2}$/.test(bulMois))?bulMois:bulMoisCourant();
+  return bilanRendu();
+}
+function bilanAller(d){const k=bilanMoisVoisin(bilanEtat.mois,d);if(k>bulMoisCourant())return;bilanEtat.mois=k;const v=document.getElementById('bilan-vue');if(v)v.scrollTop=0;return bilanRendu()}
+function bilanFermer(){const v=document.getElementById('bilan-vue');if(v)v.remove();bilanEtat.canevas=null;document.body.classList.remove('impression-bilan')}
+function bilanBlob(){return new Promise(ok=>{const c=bilanEtat.canevas;if(!c){ok(null);return}c.toBlob(b=>ok(b),'image/png')})}
+function bilanTelecharger(){
+  const c=bilanEtat.canevas;if(!c)return;
+  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=bilanNomFichier()+'.png';document.body.appendChild(a);a.click();a.remove();
+  toast('Image enregistrée : '+a.download);
+}
+/* Copier l'image dans le presse-papiers. Si le navigateur le refuse (vieille version, page pas en https),
+   on enregistre le fichier à la place : il suffit de le glisser dans le mail. */
+async function bilanCopier(){
+  const s=document.getElementById('bvq-etat');
+  try{
+    if(!(navigator.clipboard&&window.ClipboardItem))throw new Error('presse-papiers indisponible');
+    await navigator.clipboard.write([new ClipboardItem({'image/png':bilanBlob()})]);
+    if(s)s.textContent='✓ Image copiée — colle-la dans ton mail (Ctrl + V).';
+    toast('Image copiée ✓ — Ctrl + V dans le mail');
+  }catch(e){
+    bilanTelecharger();
+    if(s)s.textContent='Copie directe refusée par le navigateur : l’image a été enregistrée, glisse le fichier dans ton mail.';
+  }
+}
+function bilanImprimer(){
+  const titre=document.title;
+  document.title=bilanNomFichier().replace(/_/g,' ');                  // le nom proposé pour le fichier PDF
+  document.body.classList.add('impression-bilan');
+  const fin=()=>{document.body.classList.remove('impression-bilan');document.title=titre};
+  window.addEventListener('afterprint',fin,{once:true});
+  setTimeout(()=>{window.print();setTimeout(fin,1500)},150);
+}
 /* V3.14 — hauteur réelle de l'en-tête (elle change sur téléphone) : le bandeau du mois se fige juste dessous */
 (function(){const maj=()=>{const h=document.querySelector('header');const v=h&&getComputedStyle(h).position==='sticky'?h.offsetHeight:0;document.documentElement.style.setProperty('--hdr-h',v+'px')};
   window.addEventListener('resize',maj);window.addEventListener('load',maj);setTimeout(maj,500)})();
