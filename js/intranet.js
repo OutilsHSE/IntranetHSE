@@ -1,4 +1,4 @@
-const APP_VERSION='V3.21';   // 24/11/2026 — BILAN MENSUEL VIGIMINUTES + QHP en IMAGE à coller dans un mail, ou en PDF (accueil, bouton éditeur « 📄 Bilan Vigi + QHP » : cartouche Vigiminutes, cartouche QHP, classement complet des encadrants chantiers — js/bulletin.js) ; ESPACE QHP : « Derniers flashs » = les flashs du mois en cours seulement, « Tous les flashs » avec un menu déroulant par mois (js/qhp.js). Avant (V3.16) : BUREAU D’ÉTUDES : nouvelle rubrique d’outils (tuile de l’appli « Visite terrain BE » + tuile « Visites terrain — récap »), nouvelle page « Visites terrain BE » (js/be.js). Avant (V3.15, 20/10/2026) : nouveaux arrivants en cartes sur téléphone ; podiums QHP et VMS : tout le classement en vue Année. V3.14 : bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
+const APP_VERSION='V3.22';   // 26/11/2026 — ENVIRONNEMENT : nouvelle rubrique d’outils « Environnement » et sa page « Sites ICPE » (carte de France des sites, carte d’identité avec les quatre rubriques oui / non, convention avec le propriétaire, calendrier des échéances et récapitulatif) — module js/environnement.js, chargé par ce fichier (index.html inchangé) ; serveur V34. Avant (V3.21, 24/11/2026) : BILAN MENSUEL VIGIMINUTES + QHP en IMAGE à coller dans un mail, ou en PDF (accueil, bouton éditeur « 📄 Bilan Vigi + QHP » : cartouche Vigiminutes, cartouche QHP, classement complet des encadrants chantiers — js/bulletin.js) ; ESPACE QHP : « Derniers flashs » = les flashs du mois en cours seulement, « Tous les flashs » avec un menu déroulant par mois (js/qhp.js). Avant (V3.16) : BUREAU D’ÉTUDES : nouvelle rubrique d’outils (tuile de l’appli « Visite terrain BE » + tuile « Visites terrain — récap »), nouvelle page « Visites terrain BE » (js/be.js). Avant (V3.15, 20/10/2026) : nouveaux arrivants en cartes sur téléphone ; podiums QHP et VMS : tout le classement en vue Année. V3.14 : bulletin : curseur Mois | Année dans chaque graphique et podium, bandeau du mois figé. Avant (V3.13) : bulletin : Vigiminutes du mois (1 barre) ou de l'année (12 barres), QHP en barres sur l'année, VMS (mois, année, podium), « Encadrants chantiers ». Avant : arrivants : dates lues au bon jour (ISO Sheets), lignes stables, deux modifications coup sur coup gardées ; V3.11.1 : correctif « tout débranché » (lecture légère de l'éditeur avec son code, synchro enchaînée) ; V3.11 16/10 : retours avant tests : recherche élargie (synonymes, racines, fautes), recherche IA (chrono, cache, repli), page d'un flash redessinée (image cliquable, vidéo + quiz en encadrés, vignette YouTube), images des flashs par lot (pdf.js embarqué), quiz proposé par l'IA, oublis sur l'accueil ; + V3.8 intérimaires, V3.7 collaborateurs, V3.6 oublis, V3.5.1 flashs, V3.4 rapidité
 const LS='ihse_v2', LS_CONF='ihse_conf_v2';
 const EPOCH='1970-01-01T00:00:00.000Z';
 function nowISO(){return new Date().toISOString()}
@@ -15,7 +15,8 @@ function frDateCourt(iso){if(!iso)return '';const d=new Date(iso);if(isNaN(d))re
 
 /* ==================== OUTILS PAR DÉFAUT ==================== */
 const CAT_BE='Bureau d’études';   // V3.16
-const CATS=['Pour évaluer les risques','Pour prévenir les risques','Pour sensibiliser les nouveaux arrivants','Culture HSE',CAT_BE,'Outils service HSE'];
+const CAT_ENV='Environnement';   // V3.22
+const CATS=['Pour évaluer les risques','Pour prévenir les risques','Pour sensibiliser les nouveaux arrivants','Culture HSE',CAT_ENV,CAT_BE,'Outils service HSE'];
 const CAT_HSE='Outils service HSE';
 const DEF_OUTILS=[
  // — Pour évaluer les risques —
@@ -43,7 +44,9 @@ const DEF_OUTILS=[
  {id:'reporting',cat:CAT_HSE,ico:'🗂️',nom:'Sheets de reporting',desc:'Accès direct aux classeurs Google',links:[],hse:true},
  // — Bureau d’études (V3.16) —
  {id:'visitebe',cat:CAT_BE,ico:'🧭',nom:'Visite terrain BE',desc:'Grille HSE de reconnaissance avant travaux : contraintes du site, photos, décision, PDF',url:'https://outilshse.github.io/VisiteTerrainBE/'},
- {id:'recapbe',cat:CAT_BE,ico:'🗂️',nom:'Visites terrain — récap',desc:'Les contraintes relevées par chantier, rangées par agence',url:''}
+ {id:'recapbe',cat:CAT_BE,ico:'🗂️',nom:'Visites terrain — récap',desc:'Les contraintes relevées par chantier, rangées par agence',url:''},
+ // — Environnement (V3.22) —
+ {id:'envicpe',cat:CAT_ENV,ico:'🌱',nom:'Sites ICPE — carte et échéances',desc:'Carte de France des sites ICPE, carte d’identité de chaque site, calendrier des fins d’arrêté et de convention',url:''}
 ].map((o,i)=>Object.assign({url:'',links:[],hse:false},o,{ordre:(i+1)*10,maj:EPOCH,masque:false}));
 
 /* ==================== KPI : DÉFINITIONS ==================== */
@@ -326,6 +329,7 @@ function setAgence(a){agenceChoisie=a;conf.agence=a;saveConfLS();renderDash();re
   if(typeof arrivFiltre!=='undefined'){arrivFiltre.agence=a||'';if(document.getElementById('v-arriv').classList.contains('active'))renderArrivants()}
   try{if(document.getElementById('v-retex').classList.contains('active')&&typeof renderRetex==='function')renderRetex();}catch(e){}
   try{if(document.getElementById('v-be').classList.contains('active')&&typeof renderBe==='function')renderBe();}catch(e){}   // V3.16
+  try{if(document.getElementById('v-env').classList.contains('active')&&typeof renderEnv==='function')renderEnv();}catch(e){}   // V3.22
   try{if(document.getElementById('v-rem').classList.contains('active'))renderRemontees();if(document.getElementById('v-hse').classList.contains('active'))renderTodo()}catch(e){}
 }
 function objData(){return objAuto||(demoMode()?DEMO_OBJ:null)}
@@ -403,6 +407,7 @@ function go(v){
   if(v==='v-qhp'&&typeof renderQhp==='function')renderQhp();
   if(v==='v-retex'&&typeof renderRetex==='function'){retexVue.id=null;renderRetex()}
   if(v==='v-be'&&typeof renderBe==='function'){renderBe();beActualiser(false)}   // V3.16 : affichage immédiat, puis version fraîche
+  if(v==='v-env'){if(typeof renderEnv==='function'){envVue.id=null;renderEnv()}else document.getElementById('v-env').innerHTML='<div class="card"><p class="hint">⏳ Chargement de la page Environnement…</p></div>'}   // V3.22
   if(v==='v-hse'&&typeof renderTodo==='function')renderTodo();
   document.body.classList.remove('menuopen');
   majNav();
@@ -424,10 +429,11 @@ const ICONES={'pretmat':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" s
   'visitebe':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><g stroke="#C25A08"><path d="M9.3 10.6l1.9 1.9 3.5-3.7"/></g></svg>','recapbe':'<svg viewBox="0 0 24 24" fill="none" stroke="#1F6FB2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.3h17M3.5 14.7h17"/><g stroke="#C25A08"><path d="M15.2 6l1.4 1.4L18 6M15.2 11.3l1.4 1.4 1.4-1.4M15.2 16.7l1.4 1.4 1.4-1.4"/></g></svg>'};
 function outilsTries(){return state.outils.filter(o=>!o.supprime).sort((a,b)=>(a.ordre||0)-(b.ordre||0))}
 function iconeHtml(o){const s=ICONES[o.id];return '<span class="ti'+(s?'':' emo')+'">'+(s||esc(o.ico||'🧰'))+'</span>'}
-const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Bureau d’études':'#0E94AB','Outils service HSE':'#2E86C8'};
+const CAT_COUL={'Pour évaluer les risques':'#C25A08','Pour prévenir les risques':'#1F6FB2','Pour sensibiliser les nouveaux arrivants':'#158A52','Culture HSE':'#7A4FC0','Bureau d’études':'#0E94AB','Environnement':'#2E7D5B','Outils service HSE':'#2E86C8'};
 function tuileHtml(o){
   if(o.id==='modeop')return '<div class="tile" onclick="go(\'v-modeop\')" title="Banque documentaire — flashs et modes opératoires">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'
   if(o.id==='retex')return '<div class="tile" onclick="go(\'v-retex\')" title="RETEX de fin de chantier">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>'   // V3.3.3;
+  if(o.id==='envicpe')return '<div class="tile" onclick="go(\'v-env\')" title="Sites ICPE — carte de France et calendrier des échéances">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';   // V3.22
   if(o.id==='recapbe')return '<div class="tile" onclick="go(\'v-be\')" title="Visites terrain du bureau d’études — récapitulatif par agence">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span></div>';   // V3.16
   const liens=(o.links||[]).filter(l=>l&&l.u);
   if(liens.length)return '<div class="tile menu" onclick="openLiens(\''+o.id+'\')" title="'+esc(o.nom)+'">'+iconeHtml(o)+'<span class="tn">'+esc(o.nom)+'</span><span class="men">▾ '+liens.length+'</span></div>';
@@ -2161,6 +2167,7 @@ function appliquer(d,origine){
   if(Array.isArray(d.remontees))state.remontees=d.remontees;        // V3.3
   if(Array.isArray(d.retex))state.retex=d.retex;                    // V3.3.3
   if(d.visitesBe&&typeof beRecevoir==='function')beRecevoir(d.visitesBe);   // V3.16 — visites terrain du bureau d'études
+  if(Array.isArray(d.sitesEnv))state.sitesEnv=d.sitesEnv;           // V3.22 — sites ICPE (serveur V34)
   if(Array.isArray(d.qhpThemes))state.qhpThemes=d.qhpThemes;        // V3.3 p3
   if(d.tombQhpThemes&&typeof d.tombQhpThemes==='object')state.tombQhpThemes=d.tombQhpThemes;
   if(d.todo&&typeof d.todo==='object')state.todo=d.todo;
@@ -2187,7 +2194,8 @@ function rafraichirEcranActif(){
     if(act&&act.id==='v-qhp'&&typeof renderQhp==='function')renderQhp();
     if(act&&act.id==='v-hse'&&typeof renderTodo==='function')renderTodo();
     if(act&&act.id==='v-modeop')renderBanque();if(act&&act.id==='v-retex'&&typeof renderRetex==='function')renderRetex();
-    if(act&&act.id==='v-be'&&typeof renderBe==='function')renderBe();}catch(e){}
+    if(act&&act.id==='v-be'&&typeof renderBe==='function')renderBe();
+    if(act&&act.id==='v-env'&&typeof renderEnv==='function')renderEnv();}catch(e){}
 }
 async function syncOuLecture(manuel,lectureSeule){
   if(!webhookLecture()){if(manuel)toast('Renseigne d’abord l’adresse du webhook',true);return false}
@@ -2323,7 +2331,7 @@ function montrerVerrou(msg){
   const m=document.getElementById('vr-msg'); if(m)m.textContent=msg||'';
   const i=document.getElementById('vr-mdp'); if(i){i.value='';setTimeout(()=>{try{i.focus()}catch(e){}},120)}
 }
-function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};try{state.visitesBe=[];delete state.visitesBeEtat;save()}catch(e){}qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}try{indexedDB.deleteDatabase('ihse_images')}catch(e){}saveConfLS()}   // V3.9.2 : les images gardées dans le navigateur partent avec le verrou
+function oublierVerrou(){conf.lecture='';conf.deverrouille=false;conf.deverrouilleLe='';liensOutils={};try{state.visitesBe=[];delete state.visitesBeEtat;state.sitesEnv=[];save()}catch(e){}qhpAuto=null;repAuto=null;objAuto=null;try{localStorage.removeItem('ihse_cache_v1')}catch(e){}try{indexedDB.deleteDatabase('ihse_images')}catch(e){}saveConfLS()}   // V3.9.2 : les images gardées dans le navigateur partent avec le verrou
 function verrouExpire(){
   const n=Number(conf.expireJours); if(!(n>0))return false;
   const t=Date.parse(conf.deverrouilleLe||''); if(!isFinite(t))return true;   // déverrouillé avant la V28.3 : on redemande une fois
@@ -2418,6 +2426,14 @@ async function demarrer(){
    deux fichiers — js/intranet.js et css/intranet.css — sans toucher à index.html ni à sw.js :
    la section de la page est donc créée ici. */
 (function(){if(document.getElementById('v-be'))return;const r=document.getElementById('v-retex');if(r)r.insertAdjacentHTML('afterend','<section class="view" id="v-be"></section>')})();
+/* V3.22 — ENVIRONNEMENT (sites ICPE) : la section et le module sont ajoutés d'ici, index.html ne change pas.
+   Le module (js/environnement.js) embarque son fond de carte et ses styles ; s'il manque, la page le dit. */
+(function(){if(document.getElementById('v-env'))return;const r=document.getElementById('v-retex');if(!r)return;
+  r.insertAdjacentHTML('afterend','<section class="view" id="v-env"></section>');
+  const s=document.createElement('script');s.src='js/environnement.js?v='+APP_VERSION.replace(/^V/,'');
+  s.onload=function(){try{if(document.getElementById('v-env').classList.contains('active')&&typeof renderEnv==='function')renderEnv()}catch(e){}};
+  s.onerror=function(){const b=document.getElementById('v-env');if(b)b.innerHTML='<div class="card"><p class="hint">⚠️ Le fichier js/environnement.js est introuvable sur le dépôt : dépose-le à côté de intranet.js.</p></div>'};
+  document.body.appendChild(s)})();
 const beFiltre={q:'',non:false};
 const beOuvert=new Set();                 // les lignes dépliées (gardées quand la page se redessine)
 const beEtat={enCours:false,quand:0,erreur:''};
